@@ -1,0 +1,110 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+model User {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  displayName  String?  @map("display_name")
+  role         Role     @default(USER)
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  savedCafes          SavedCafe[]
+  submissions         CafeSubmission[]
+  passwordResetTokens PasswordResetToken[]
+
+  @@map("users")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  token     String   @unique
+  userId    String   @map("user_id") @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime @map("expires_at")
+  used      Boolean  @default(false)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@map("password_reset_tokens")
+}
+
+model Cafe {
+  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  slug          String      @unique
+  address       String?
+  district      String?
+  lat           Decimal?    @db.Decimal(10, 8)
+  lng           Decimal?    @db.Decimal(11, 8)
+  // location (PostGIS geography) được quản lý bằng raw SQL — Prisma không map trực tiếp
+  googlePlaceId String?     @map("google_place_id")
+  openingHours  String?     @map("opening_hours")
+  priceRange    PriceRange? @map("price_range")
+  oneLiner      String?     @map("one_liner")
+  vibe          String[]
+  purpose       String[]
+  rating        Decimal?    @db.Decimal(2, 1)
+  images        String[]
+  coverImage    String?     @map("cover_image")
+  isPublished   Boolean     @default(false) @map("is_published")
+  createdAt     DateTime    @default(now()) @map("created_at")
+  updatedAt     DateTime    @updatedAt @map("updated_at")
+
+  savedBy SavedCafe[]
+
+  @@map("cafes")
+}
+
+model SavedCafe {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  cafeId         String   @map("cafe_id") @db.Uuid
+  collectionName String   @default("Yêu thích") @map("collection_name")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe Cafe @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cafeId])
+  @@map("saved_cafes")
+}
+
+model CafeSubmission {
+  id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  submittedById String?          @map("submitted_by") @db.Uuid
+  name          String
+  address       String?
+  googleMapsUrl String?          @map("google_maps_url")
+  note          String?
+  status        SubmissionStatus @default(pending)
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  submittedBy User? @relation(fields: [submittedById], references: [id])
+
+  @@map("cafe_submissions")
+}
+
+enum Role {
+  USER
+  ADMIN
+}
+
+enum PriceRange {
+  under_50k
+  price_50k_100k  @map("50k_100k")
+  price_100k_150k @map("100k_150k")
+  above_150k
+}
+
+enum SubmissionStatus {
+  pending
+  approved
+  rejected
+}
