@@ -2,7 +2,7 @@ services:
   - type: web
     name: cafe-finder-be
     runtime: node
-    buildCommand: npm ci && npm run build
+    buildCommand: npm ci --include=dev && npx prisma generate && npm run build
     startCommand: node dist/main
     envVars:
       - key: NODE_ENV
