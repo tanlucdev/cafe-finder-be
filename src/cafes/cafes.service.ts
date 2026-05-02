@@ -2,19 +2,34 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 
+function priceRangeToFilter(priceRange: string): object {
+  switch (priceRange) {
+    case 'under_50k':
+      return { priceMax: { lte: 50000 } };
+    case 'price_50k_100k':
+      return { priceMin: { gte: 50000 }, priceMax: { lte: 100000 } };
+    case 'price_100k_150k':
+      return { priceMin: { gte: 100000 }, priceMax: { lte: 150000 } };
+    case 'above_150k':
+      return { priceMin: { gte: 150000 } };
+    default:
+      return {};
+  }
+}
+
 @Injectable()
 export class CafesService {
   constructor(private prisma: PrismaService) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { district, search, priceRange, vibe, purpose, page = 1, limit = 12 } = filter;
+    const { district, search, priceRange, vibes, purposes, page = 1, limit = 12 } = filter;
 
     const where: any = {
       isPublished: true,
       ...(district && { district }),
-      ...(priceRange && { priceRange: priceRange as any }),
-      ...(vibe?.length && { vibe: { hasSome: vibe } }),
-      ...(purpose?.length && { purpose: { hasSome: purpose } }),
+      ...(priceRange && priceRangeToFilter(priceRange)),
+      ...(vibes?.length && { vibes: { hasSome: vibes } }),
+      ...(purposes?.length && { purposes: { hasSome: purposes } }),
       ...(search && {
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
@@ -29,18 +44,19 @@ export class CafesService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
         select: {
           id: true,
           name: true,
           slug: true,
           address: true,
           district: true,
-          priceRange: true,
+          priceMin: true,
+          priceMax: true,
           oneLiner: true,
-          vibe: true,
-          purpose: true,
-          rating: true,
+          vibes: true,
+          purposes: true,
+          isFeatured: true,
           coverImage: true,
         },
       }),
@@ -76,11 +92,10 @@ export class CafesService {
     const result = await this.prisma.$queryRaw<any[]>`
       SELECT
         c.id, c.name, c.slug, c.address, c.district,
-        c.price_range as "priceRange",
-        c.one_liner as "oneLiner",
-        c.vibe, c.purpose, c.rating,
-        c.cover_image as "coverImage",
-        c.lat, c.lng,
+        c.price_min AS "priceMin", c.price_max AS "priceMax",
+        c.one_liner AS "oneLiner",
+        c.vibes, c.purposes,
+        c.cover_image AS "coverImage",
         ROUND(
           (ST_Distance(
             c.location,
@@ -119,20 +134,20 @@ export class CafesService {
     return this.prisma.cafe.findMany({
       where: {
         isPublished: true,
-        ...(vibes?.length && { vibe: { hasSome: vibes } }),
-        ...(purposes?.length && { purpose: { hasSome: purposes } }),
+        ...(vibes?.length && { vibes: { hasSome: vibes } }),
+        ...(purposes?.length && { purposes: { hasSome: purposes } }),
       },
       take: 10,
-      orderBy: { rating: 'desc' },
+      orderBy: [{ isFeatured: 'desc' }, { featuredOrder: 'asc' }],
       select: {
         id: true,
         name: true,
         slug: true,
         oneLiner: true,
-        vibe: true,
-        purpose: true,
+        vibes: true,
+        purposes: true,
         coverImage: true,
-        rating: true,
+        isFeatured: true,
         district: true,
       },
     });

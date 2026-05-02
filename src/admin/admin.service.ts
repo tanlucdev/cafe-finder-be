@@ -32,29 +32,49 @@ export class AdminService {
   }
 
   async createCafe(dto: CreateCafeDto) {
-    const slug = dto.slug || slugify(dto.name, { lower: true, locale: 'vi', strict: true });
+    const { lat, lng, slug: dtoSlug, ...cafeData } = dto;
+    const slug = dtoSlug || slugify(dto.name, { lower: true, locale: 'vi', strict: true });
 
-    return this.prisma.cafe.create({
-      data: {
-        ...dto,
-        slug,
-        priceRange: dto.priceRange as any,
-      },
-    });
+    const cafe = await this.prisma.cafe.create({ data: { ...cafeData, slug } });
+
+    if (lat != null && lng != null) {
+      await this.prisma.$executeRaw`
+        UPDATE cafes
+        SET location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
+        WHERE id = ${cafe.id}::uuid
+      `;
+    }
+
+    return cafe;
   }
 
   async updateCafe(id: string, dto: UpdateCafeDto) {
     await this.findCafeOrThrow(id);
 
-    const data: any = { ...dto };
-    if (dto.name && !dto.slug) {
-      data.slug = slugify(dto.name, { lower: true, locale: 'vi', strict: true });
+    const { lat, lng, slug: dtoSlug, name, ...rest } = dto;
+    const data: any = { ...rest };
+
+    if (name) {
+      data.name = name;
+      if (!dtoSlug) {
+        data.slug = slugify(name, { lower: true, locale: 'vi', strict: true });
+      }
     }
-    if (dto.priceRange) {
-      data.priceRange = dto.priceRange as any;
+    if (dtoSlug) {
+      data.slug = dtoSlug;
     }
 
-    return this.prisma.cafe.update({ where: { id }, data });
+    const cafe = await this.prisma.cafe.update({ where: { id }, data });
+
+    if (lat != null && lng != null) {
+      await this.prisma.$executeRaw`
+        UPDATE cafes
+        SET location = ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography
+        WHERE id = ${cafe.id}::uuid
+      `;
+    }
+
+    return cafe;
   }
 
   async deleteCafe(id: string) {

@@ -13,22 +13,25 @@ export class CafeFilterDto {
   @IsString()
   search?: string;
 
-  @ApiPropertyOptional({ enum: ['under_50k', 'price_50k_100k', 'price_100k_150k', 'above_150k'] })
+  @ApiPropertyOptional({
+    enum: ['under_50k', 'price_50k_100k', 'price_100k_150k', 'above_150k'],
+    description: 'Lọc theo khoảng giá',
+  })
   @IsOptional()
   @IsString()
   priceRange?: string;
 
-  @ApiPropertyOptional({ example: 'Cozy,Artistic', description: 'Comma-separated vibes' })
+  @ApiPropertyOptional({ example: 'yên tĩnh,vintage', description: 'Comma-separated vibes' })
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value))
   @IsArray()
-  vibe?: string[];
+  vibes?: string[];
 
-  @ApiPropertyOptional({ example: 'Work,Study', description: 'Comma-separated purposes' })
+  @ApiPropertyOptional({ example: 'làm việc,học tập', description: 'Comma-separated purposes' })
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value))
   @IsArray()
-  purpose?: string[];
+  purposes?: string[];
 
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()

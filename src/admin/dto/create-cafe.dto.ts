@@ -4,10 +4,9 @@ import {
   IsArray,
   IsBoolean,
   IsNumber,
+  IsInt,
   Min,
-  Max,
   MaxLength,
-  IsUrl,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -36,27 +35,51 @@ export class CreateCafeDto {
   @MaxLength(100)
   district?: string;
 
-  @ApiPropertyOptional({ example: 10.7761 })
+  @ApiPropertyOptional({ example: 10.7761, description: 'Latitude — dùng để set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   lat?: number;
 
-  @ApiPropertyOptional({ example: 106.7026 })
+  @ApiPropertyOptional({ example: 106.7026, description: 'Longitude — dùng để set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   lng?: number;
 
-  @ApiPropertyOptional({ example: '07:00 - 22:00' })
+  @ApiPropertyOptional()
   @IsOptional()
   @IsString()
-  openingHours?: string;
+  googlePlaceId?: string;
 
-  @ApiPropertyOptional({ enum: ['under_50k', 'price_50k_100k', 'price_100k_150k', 'above_150k'] })
+  @ApiPropertyOptional({ example: 'https://maps.google.com/...' })
   @IsOptional()
   @IsString()
-  priceRange?: string;
+  googleMapsUrl?: string;
+
+  @ApiPropertyOptional({ example: '07:00' })
+  @IsOptional()
+  @IsString()
+  openingTime?: string;
+
+  @ApiPropertyOptional({ example: '22:00' })
+  @IsOptional()
+  @IsString()
+  closingTime?: string;
+
+  @ApiPropertyOptional({ example: 50000, description: 'Giá tối thiểu (VND)' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  priceMin?: number;
+
+  @ApiPropertyOptional({ example: 100000, description: 'Giá tối đa (VND), null = trên mức này' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  priceMax?: number;
 
   @ApiPropertyOptional({ example: 'Không gian công nghiệp ấn tượng' })
   @IsOptional()
@@ -64,23 +87,30 @@ export class CreateCafeDto {
   @MaxLength(500)
   oneLiner?: string;
 
-  @ApiPropertyOptional({ type: [String], example: ['Cozy', 'Vintage'] })
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional({ example: 'Cold Brew' })
+  @IsOptional()
+  @IsString()
+  signatureDrink?: string;
+
+  @ApiPropertyOptional({ type: [String], example: ['yên tĩnh', 'vintage'] })
   @IsOptional()
   @IsArray()
-  vibe?: string[];
+  vibes?: string[];
 
-  @ApiPropertyOptional({ type: [String], example: ['Work', 'Date'] })
+  @ApiPropertyOptional({ type: [String], example: ['làm việc', 'học tập'] })
   @IsOptional()
   @IsArray()
-  purpose?: string[];
+  purposes?: string[];
 
-  @ApiPropertyOptional({ example: 4.5 })
+  @ApiPropertyOptional({ type: [String], example: ['wifi', 'ổ cắm'] })
   @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(5)
-  rating?: number;
+  @IsArray()
+  amenities?: string[];
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
@@ -91,6 +121,23 @@ export class CreateCafeDto {
   @IsOptional()
   @IsString()
   coverImage?: string;
+
+  @ApiPropertyOptional({ example: 'https://instagram.com/...' })
+  @IsOptional()
+  @IsString()
+  instagramUrl?: string;
+
+  @ApiPropertyOptional({ default: false })
+  @IsOptional()
+  @IsBoolean()
+  isFeatured?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  featuredOrder?: number;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

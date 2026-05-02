@@ -10,16 +10,15 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  email        String   @unique
-  passwordHash String   @map("password_hash")
-  displayName  String?  @map("display_name")
-  role         Role     @default(USER)
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  savedCafes          SavedCafe[]
+  id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  email               String               @unique
+  passwordHash        String               @map("password_hash")
+  displayName         String?              @map("display_name")
+  role                Role                 @default(USER)
+  createdAt           DateTime             @default(now()) @map("created_at")
   submissions         CafeSubmission[]
   passwordResetTokens PasswordResetToken[]
+  savedCafes          SavedCafe[]
 
   @@map("users")
 }
@@ -28,38 +27,57 @@ model PasswordResetToken {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   token     String   @unique
   userId    String   @map("user_id") @db.Uuid
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   expiresAt DateTime @map("expires_at")
   used      Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("password_reset_tokens")
 }
 
 model Cafe {
-  id            String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name          String
-  slug          String      @unique
-  address       String?
-  district      String?
-  lat           Decimal?    @db.Decimal(10, 8)
-  lng           Decimal?    @db.Decimal(11, 8)
-  // location (PostGIS geography) được quản lý bằng raw SQL — Prisma không map trực tiếp
-  googlePlaceId String?     @map("google_place_id")
-  openingHours  String?     @map("opening_hours")
-  priceRange    PriceRange? @map("price_range")
-  oneLiner      String?     @map("one_liner")
-  vibe          String[]
-  purpose       String[]
-  rating        Decimal?    @db.Decimal(2, 1)
-  images        String[]
-  coverImage    String?     @map("cover_image")
-  isPublished   Boolean     @default(false) @map("is_published")
-  createdAt     DateTime    @default(now()) @map("created_at")
-  updatedAt     DateTime    @updatedAt @map("updated_at")
+  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name             String
+  slug             String                    @unique
+  address          String?
+  district         String?
+  district_legacy  String?
+  location         Unsupported("geography")?
+  googlePlaceId    String?                   @map("google_place_id")
+  googleMapsUrl    String?                   @map("google_maps_url")
+  openingTime      DateTime?                 @map("opening_time") @db.Time(6)
+  closingTime      DateTime?                 @map("closing_time") @db.Time(6)
+  priceMin         Int?                      @map("price_min")
+  priceMax         Int?                      @map("price_max")
+  oneLiner         String?                   @map("one_liner")
+  description      String?
+  signatureDrink   String?                   @map("signature_drink")
+  vibes            String[]
+  purposes         String[]
+  amenities        String[]
+  parking_location String?
+  images           String[]
+  coverImage       String?                   @map("cover_image")
+  instagramUrl     String?                   @map("instagram_url")
+  isFeatured       Boolean?                  @default(false) @map("is_featured")
+  featuredOrder    Int?                      @map("featured_order")
+  search_vector    Unsupported("tsvector")?
+  isPublished      Boolean                   @default(true) @map("is_published")
+  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  savedCafes       SavedCafe[]
 
-  savedBy SavedCafe[]
-
+  @@index([amenities], map: "idx_cafes_amenities", type: Gin)
+  @@index([district], map: "idx_cafes_district")
+  @@index([district_legacy], map: "idx_cafes_district_leg")
+  @@index([isFeatured, featuredOrder], map: "idx_cafes_featured")
+  @@index([openingTime, closingTime], map: "idx_cafes_hours")
+  @@index([location], map: "idx_cafes_location", type: Gist)
+  @@index([priceMin, priceMax], map: "idx_cafes_price")
+  @@index([isPublished], map: "idx_cafes_published")
+  @@index([purposes], map: "idx_cafes_purposes", type: Gin)
+  @@index([search_vector], map: "idx_cafes_search", type: Gin)
+  @@index([vibes], map: "idx_cafes_vibes", type: Gin)
   @@map("cafes")
 }
 
@@ -69,9 +87,8 @@ model SavedCafe {
   cafeId         String   @map("cafe_id") @db.Uuid
   collectionName String   @default("Yêu thích") @map("collection_name")
   createdAt      DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-  cafe Cafe @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cafeId])
   @@map("saved_cafes")
@@ -86,10 +103,18 @@ model CafeSubmission {
   note          String?
   status        SubmissionStatus @default(pending)
   createdAt     DateTime         @default(now()) @map("created_at")
-
-  submittedBy User? @relation(fields: [submittedById], references: [id])
+  submittedBy   User?            @relation(fields: [submittedById], references: [id])
 
   @@map("cafe_submissions")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model spatial_ref_sys {
+  srid      Int     @id
+  auth_name String? @db.VarChar(256)
+  auth_srid Int?
+  srtext    String? @db.VarChar(2048)
+  proj4text String? @db.VarChar(2048)
 }
 
 enum Role {
@@ -97,15 +122,15 @@ enum Role {
   ADMIN
 }
 
-enum PriceRange {
-  under_50k
-  price_50k_100k  @map("50k_100k")
-  price_100k_150k @map("100k_150k")
-  above_150k
-}
-
 enum SubmissionStatus {
   pending
   approved
   rejected
+}
+
+enum PriceRange {
+  under_50k
+  k_100k     @map("50k_100k")
+  k_150k     @map("100k_150k")
+  above_150k
 }
