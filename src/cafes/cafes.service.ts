@@ -57,6 +57,8 @@ export class CafesService {
           vibes: true,
           purposes: true,
           isFeatured: true,
+          images: true,
+          imageOrientations: true,
           coverImage: true,
         },
       }),
@@ -95,6 +97,8 @@ export class CafesService {
         c.price_min AS "priceMin", c.price_max AS "priceMax",
         c.one_liner AS "oneLiner",
         c.vibes, c.purposes,
+        c.images,
+        c.image_orientations AS "imageOrientations",
         c.cover_image AS "coverImage",
         ROUND(
           (ST_Distance(
@@ -146,6 +150,8 @@ export class CafesService {
         oneLiner: true,
         vibes: true,
         purposes: true,
+        images: true,
+        imageOrientations: true,
         coverImage: true,
         isFeatured: true,
         district: true,

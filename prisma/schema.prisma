@@ -57,6 +57,7 @@ model Cafe {
   amenities        String[]
   parking_location String?
   images           String[]
+  imageOrientations String[]                 @default([]) @map("image_orientations")
   coverImage       String?                   @map("cover_image")
   instagramUrl     String?                   @map("instagram_url")
   isFeatured       Boolean?                  @default(false) @map("is_featured")

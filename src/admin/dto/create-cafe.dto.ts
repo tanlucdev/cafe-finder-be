@@ -117,6 +117,11 @@ export class CreateCafeDto {
   @IsArray()
   images?: string[];
 
+  @ApiPropertyOptional({ type: [String], example: ['landscape', 'portrait'] })
+  @IsOptional()
+  @IsArray()
+  imageOrientations?: string[];
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()

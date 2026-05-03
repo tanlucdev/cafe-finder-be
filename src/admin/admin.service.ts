@@ -98,11 +98,17 @@ export class AdminService {
       where: { id },
       data: {
         images: [...cafe.images, url],
+        imageOrientations: [...(cafe.imageOrientations ?? []), 'unknown'],
         coverImage: cafe.coverImage ?? url,
       },
     });
 
-    return { url, images: updated.images, coverImage: updated.coverImage };
+    return {
+      url,
+      images: updated.images,
+      imageOrientations: updated.imageOrientations,
+      coverImage: updated.coverImage,
+    };
   }
 
   private async findCafeOrThrow(id: string) {
