@@ -10,13 +10,21 @@ async function bootstrap() {
   app.setGlobalPrefix('api');
 
   app.enableCors({
-  origin: [
-    process.env.FRONTEND_URL || 'http://localhost:3000',
-    /\.vercel\.app$/,
-  ],
-  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
-  credentials: true,
-});
+    origin: (origin, callback) => {
+      const allowed = [
+        process.env.FRONTEND_URL || 'http://localhost:3000',
+        'http://localhost:3000',
+      ];
+      if (!origin || allowed.includes(origin) || /\.vercel\.app$/.test(origin)) {
+        callback(null, true);
+      } else {
+        callback(new Error(`CORS blocked: ${origin}`));
+      }
+    },
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept'],
+    credentials: true,
+  });
 
   app.useGlobalPipes(
     new ValidationPipe({
