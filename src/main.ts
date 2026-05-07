@@ -15,7 +15,7 @@ async function bootstrap() {
         process.env.FRONTEND_URL || 'http://localhost:3000',
         'http://localhost:3000',
       ];
-      if (!origin || allowed.includes(origin) || /\.vercel\.app$/.test(origin)) {
+      if (!origin || allowed.includes(origin) || /\.vercel\.app$/.test(origin) || /cafemaps\.net$/.test(origin)) {
         callback(null, true);
       } else {
         callback(new Error(`CORS blocked: ${origin}`));
