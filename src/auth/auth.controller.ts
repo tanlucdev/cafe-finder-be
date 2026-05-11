@@ -16,13 +16,13 @@ export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
   @Post('register')
-  @ApiOperation({ summary: 'Đăng ký tài khoản mới' })
+  @ApiOperation({ summary: 'Register a new account' })
   register(@Body() dto: RegisterDto) {
     return this.authService.register(dto);
   }
 
   @Post('login')
-  @ApiOperation({ summary: 'Đăng nhập và nhận JWT token' })
+  @ApiOperation({ summary: 'Login and receive a JWT token' })
   login(@Body() dto: LoginDto) {
     return this.authService.login(dto);
   }
@@ -30,7 +30,7 @@ export class AuthController {
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Thông tin user hiện tại' })
+  @ApiOperation({ summary: 'Get current user info' })
   getMe(@CurrentUser() user: any) {
     return this.authService.getMe(user.id);
   }
@@ -38,7 +38,7 @@ export class AuthController {
   @Patch('profile')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Cập nhật thông tin profile' })
+  @ApiOperation({ summary: 'Update profile information' })
   updateProfile(@CurrentUser() user: any, @Body() dto: UpdateProfileDto) {
     return this.authService.updateProfile(user.id, dto);
   }
@@ -46,19 +46,19 @@ export class AuthController {
   @Patch('password')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Đổi mật khẩu' })
+  @ApiOperation({ summary: 'Change password' })
   changePassword(@CurrentUser() user: any, @Body() dto: ChangePasswordDto) {
     return this.authService.changePassword(user.id, dto);
   }
 
   @Post('forgot-password')
-  @ApiOperation({ summary: 'Yêu cầu đặt lại mật khẩu — gửi link qua email' })
+  @ApiOperation({ summary: 'Request password reset — sends a link via email' })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
     return this.authService.forgotPassword(dto.email);
   }
 
   @Post('reset-password')
-  @ApiOperation({ summary: 'Đặt lại mật khẩu bằng token từ email' })
+  @ApiOperation({ summary: 'Reset password using token from email' })
   resetPassword(@Body() dto: ResetPasswordDto) {
     return this.authService.resetPassword(dto.token, dto.newPassword);
   }

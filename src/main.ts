@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
-import compression from 'compression';
+import * as compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -41,7 +41,7 @@ async function bootstrap() {
 
   const config = new DocumentBuilder()
     .setTitle('Cafe Finder HCMC API')
-    .setDescription('REST API cho website tìm quán cà phê HCMC')
+    .setDescription('REST API for the HCMC cafe finder website')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

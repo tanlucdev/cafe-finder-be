@@ -13,25 +13,25 @@ export class SavedController {
   constructor(private readonly savedService: SavedService) {}
 
   @Get()
-  @ApiOperation({ summary: 'Danh sách quán đã lưu' })
+  @ApiOperation({ summary: 'Get saved cafes' })
   getSaved(@CurrentUser() user: any) {
     return this.savedService.getSaved(user.id);
   }
 
   @Get('collections')
-  @ApiOperation({ summary: 'Danh sách collections của user' })
+  @ApiOperation({ summary: "List user's collections" })
   getCollections(@CurrentUser() user: any) {
     return this.savedService.getCollections(user.id);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Lưu quán vào danh sách' })
+  @ApiOperation({ summary: 'Save a cafe' })
   save(@CurrentUser() user: any, @Body() dto: SaveCafeDto) {
     return this.savedService.save(user.id, dto);
   }
 
   @Delete(':cafeId')
-  @ApiOperation({ summary: 'Xóa quán khỏi danh sách đã lưu' })
+  @ApiOperation({ summary: 'Remove a cafe from saved list' })
   remove(@CurrentUser() user: any, @Param('cafeId') cafeId: string) {
     return this.savedService.remove(user.id, cafeId);
   }

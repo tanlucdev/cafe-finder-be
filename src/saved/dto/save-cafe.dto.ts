@@ -6,7 +6,7 @@ export class SaveCafeDto {
   @IsUUID()
   cafeId: string;
 
-  @ApiPropertyOptional({ example: 'Quán yêu thích', default: 'Yêu thích' })
+  @ApiPropertyOptional({ example: 'Favorite cafes', default: 'Favorites' })
   @IsOptional()
   @IsString()
   collectionName?: string;

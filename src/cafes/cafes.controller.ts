@@ -10,18 +10,18 @@ export class CafesController {
 
   @Get()
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
-  @ApiOperation({ summary: 'Danh sách quán với filter và pagination' })
+  @ApiOperation({ summary: 'List cafes with filters and pagination' })
   findAll(@Query() filter: CafeFilterDto) {
     return this.cafesService.findAll(filter);
   }
 
-  // Các route cụ thể phải đặt TRƯỚC /:slug
+  // Specific routes must be placed BEFORE /:slug
   @Get('nearby')
   @Header('Cache-Control', 'public, max-age=30')
-  @ApiOperation({ summary: 'Tìm quán gần vị trí hiện tại (PostGIS)' })
+  @ApiOperation({ summary: 'Find cafes near a location (PostGIS)' })
   @ApiQuery({ name: 'lat', required: true, type: Number })
   @ApiQuery({ name: 'lng', required: true, type: Number })
-  @ApiQuery({ name: 'radius', required: false, type: Number, description: 'Bán kính km, mặc định 2' })
+  @ApiQuery({ name: 'radius', required: false, type: Number, description: 'Radius in km, default 2' })
   findNearby(
     @Query('lat') lat: number,
     @Query('lng') lng: number,
@@ -32,14 +32,14 @@ export class CafesController {
 
   @Get('districts')
   @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200')
-  @ApiOperation({ summary: 'Danh sách quận có quán' })
+  @ApiOperation({ summary: 'List districts that have cafes' })
   getDistricts() {
     return this.cafesService.getDistricts();
   }
 
   @Get('quiz-match')
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
-  @ApiOperation({ summary: 'Gợi ý quán theo vibe và mục đích' })
+  @ApiOperation({ summary: 'Recommend cafes by vibe and purpose' })
   @ApiQuery({ name: 'vibes', required: false, example: 'Cozy,Artistic' })
   @ApiQuery({ name: 'purposes', required: false, example: 'Work,Study' })
   quizMatch(
@@ -53,7 +53,7 @@ export class CafesController {
 
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
-  @ApiOperation({ summary: 'Chi tiết quán theo slug' })
+  @ApiOperation({ summary: 'Get cafe details by slug' })
   findOne(@Param('slug') slug: string) {
     return this.cafesService.findBySlug(slug);
   }

@@ -80,7 +80,7 @@ export class CafesService {
     });
 
     if (!cafe) {
-      throw new NotFoundException(`Không tìm thấy quán với slug: ${slug}`);
+      throw new NotFoundException(`Cafe not found with slug: ${slug}`);
     }
 
     return cafe;

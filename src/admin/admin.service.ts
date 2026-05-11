@@ -113,7 +113,7 @@ export class AdminService {
 
   private async findCafeOrThrow(id: string) {
     const cafe = await this.prisma.cafe.findUnique({ where: { id } });
-    if (!cafe) throw new NotFoundException(`Không tìm thấy quán: ${id}`);
+    if (!cafe) throw new NotFoundException(`Cafe not found: ${id}`);
     return cafe;
   }
 
@@ -133,7 +133,7 @@ export class AdminService {
 
   async reviewSubmission(id: string, dto: ReviewSubmissionDto) {
     const submission = await this.prisma.cafeSubmission.findUnique({ where: { id } });
-    if (!submission) throw new NotFoundException(`Không tìm thấy submission: ${id}`);
+    if (!submission) throw new NotFoundException(`Submission not found: ${id}`);
 
     return this.prisma.cafeSubmission.update({
       where: { id },

@@ -33,7 +33,7 @@ export class SavedService {
   async save(userId: string, dto: SaveCafeDto) {
     const cafe = await this.prisma.cafe.findUnique({ where: { id: dto.cafeId } });
     if (!cafe) {
-      throw new NotFoundException('Không tìm thấy quán');
+      throw new NotFoundException('Cafe not found');
     }
 
     try {
@@ -41,12 +41,12 @@ export class SavedService {
         data: {
           userId,
           cafeId: dto.cafeId,
-          collectionName: dto.collectionName || 'Yêu thích',
+          collectionName: dto.collectionName || 'Favorites',
         },
       });
     } catch (e: any) {
       if (e.code === 'P2002') {
-        throw new ConflictException('Quán này đã được lưu');
+        throw new ConflictException('Cafe is already saved');
       }
       throw e;
     }
@@ -58,7 +58,7 @@ export class SavedService {
     });
 
     if (!saved) {
-      throw new NotFoundException('Không tìm thấy quán trong danh sách đã lưu');
+      throw new NotFoundException('Cafe not found in saved list');
     }
 
     return this.prisma.savedCafe.delete({

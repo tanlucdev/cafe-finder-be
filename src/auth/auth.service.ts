@@ -20,7 +20,7 @@ export class AuthService {
   async register(dto: RegisterDto) {
     const exists = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (exists) {
-      throw new ConflictException('Email đã được sử dụng');
+      throw new ConflictException('Email is already in use');
     }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
@@ -42,12 +42,12 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
 
     if (!user) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const isPasswordValid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Email hoặc mật khẩu không đúng');
+      throw new UnauthorizedException('Invalid email or password');
     }
 
     const token = this.generateToken(user.id, user.role);
@@ -75,20 +75,20 @@ export class AuthService {
 
     const isValid = await bcrypt.compare(dto.currentPassword, user!.passwordHash);
     if (!isValid) {
-      throw new UnauthorizedException('Mật khẩu hiện tại không đúng');
+      throw new UnauthorizedException('Current password is incorrect');
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
     await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
 
-    return { message: 'Đổi mật khẩu thành công' };
+    return { message: 'Password changed successfully' };
   }
 
   async forgotPassword(email: string) {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     // Always return success to avoid email enumeration
-    if (!user) return { message: 'Nếu email tồn tại, bạn sẽ nhận được hướng dẫn qua email' };
+    if (!user) return { message: 'If the email exists, you will receive instructions via email' };
 
     await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
@@ -101,7 +101,7 @@ export class AuthService {
 
     await this.emailService.sendPasswordReset(user.email, token);
 
-    return { message: 'Nếu email tồn tại, bạn sẽ nhận được hướng dẫn qua email' };
+    return { message: 'If the email exists, you will receive instructions via email' };
   }
 
   async resetPassword(token: string, newPassword: string) {
@@ -110,7 +110,7 @@ export class AuthService {
     });
 
     if (!resetToken || resetToken.used || resetToken.expiresAt < new Date()) {
-      throw new BadRequestException('Token không hợp lệ hoặc đã hết hạn');
+      throw new BadRequestException('Token is invalid or has expired');
     }
 
     const passwordHash = await bcrypt.hash(newPassword, 10);
@@ -126,7 +126,7 @@ export class AuthService {
       }),
     ]);
 
-    return { message: 'Mật khẩu đã được cập nhật thành công' };
+    return { message: 'Password updated successfully' };
   }
 
   private generateToken(userId: string, role: string) {

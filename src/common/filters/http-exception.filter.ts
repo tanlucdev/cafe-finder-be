@@ -18,7 +18,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const request = ctx.getRequest();
 
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
-    let message: unknown = 'Lỗi server, vui lòng thử lại';
+    let message: unknown = 'Internal server error, please try again';
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
@@ -27,10 +27,10 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       this.logger.error(`Prisma error ${exception.code} on ${request.url}`, exception.message);
       if (exception.code === 'P2002') {
         status = HttpStatus.CONFLICT;
-        message = 'Dữ liệu đã tồn tại';
+        message = 'Data already exists';
       } else if (exception.code === 'P2025') {
         status = HttpStatus.NOT_FOUND;
-        message = 'Không tìm thấy dữ liệu';
+        message = 'Data not found';
       }
     } else if (exception instanceof Prisma.PrismaClientInitializationError) {
       this.logger.error(`Prisma init error on ${request.url}`, (exception as Error).message);

@@ -15,7 +15,7 @@ export class StorageService {
 
   async uploadImage(file: Express.Multer.File, folder: string = 'cafes'): Promise<string> {
     if (!this.supabaseUrl || !this.supabaseKey) {
-      throw new InternalServerErrorException('Supabase chưa được cấu hình');
+      throw new InternalServerErrorException('Supabase is not configured');
     }
 
     const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/\s/g, '_')}`;
@@ -34,7 +34,7 @@ export class StorageService {
 
     if (!response.ok) {
       const error = await response.text();
-      throw new InternalServerErrorException(`Upload ảnh thất bại: ${error}`);
+      throw new InternalServerErrorException(`Image upload failed: ${error}`);
     }
 
     return `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${fileName}`;

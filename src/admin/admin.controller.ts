@@ -33,7 +33,7 @@ export class AdminController {
   // ── Cafes ──
 
   @Get('cafes')
-  @ApiOperation({ summary: 'Tất cả quán (kể cả chưa publish)' })
+  @ApiOperation({ summary: 'All cafes (including unpublished)' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
   getAllCafes(@Query('page') page: number = 1, @Query('limit') limit: number = 20) {
@@ -41,31 +41,31 @@ export class AdminController {
   }
 
   @Post('cafes')
-  @ApiOperation({ summary: 'Thêm quán mới' })
+  @ApiOperation({ summary: 'Create a new cafe' })
   createCafe(@Body() dto: CreateCafeDto) {
     return this.adminService.createCafe(dto);
   }
 
   @Put('cafes/:id')
-  @ApiOperation({ summary: 'Sửa thông tin quán' })
+  @ApiOperation({ summary: 'Update cafe details' })
   updateCafe(@Param('id') id: string, @Body() dto: UpdateCafeDto) {
     return this.adminService.updateCafe(id, dto);
   }
 
   @Delete('cafes/:id')
-  @ApiOperation({ summary: 'Xóa quán' })
+  @ApiOperation({ summary: 'Delete a cafe' })
   deleteCafe(@Param('id') id: string) {
     return this.adminService.deleteCafe(id);
   }
 
   @Patch('cafes/:id/publish')
-  @ApiOperation({ summary: 'Toggle publish/unpublish quán' })
+  @ApiOperation({ summary: 'Toggle cafe publish/unpublish' })
   togglePublish(@Param('id') id: string) {
     return this.adminService.togglePublish(id);
   }
 
   @Post('cafes/:id/images')
-  @ApiOperation({ summary: 'Upload ảnh cho quán' })
+  @ApiOperation({ summary: 'Upload image for a cafe' })
   @ApiConsumes('multipart/form-data')
   @UseInterceptors(FileInterceptor('file'))
   uploadImage(@Param('id') id: string, @UploadedFile() file: Express.Multer.File) {
@@ -75,14 +75,14 @@ export class AdminController {
   // ── Submissions ──
 
   @Get('submissions')
-  @ApiOperation({ summary: 'Danh sách đóng góp quán' })
+  @ApiOperation({ summary: 'List cafe submissions' })
   @ApiQuery({ name: 'status', required: false, enum: ['pending', 'approved', 'rejected'] })
   getSubmissions(@Query('status') status?: string) {
     return this.adminService.getSubmissions(status);
   }
 
   @Patch('submissions/:id')
-  @ApiOperation({ summary: 'Duyệt hoặc từ chối đóng góp' })
+  @ApiOperation({ summary: 'Approve or reject a submission' })
   reviewSubmission(@Param('id') id: string, @Body() dto: ReviewSubmissionDto) {
     return this.adminService.reviewSubmission(id, dto);
   }

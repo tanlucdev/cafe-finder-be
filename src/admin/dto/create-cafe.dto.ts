@@ -17,31 +17,31 @@ export class CreateCafeDto {
   @MaxLength(200)
   name: string;
 
-  @ApiPropertyOptional({ description: 'Tự generate từ name nếu không truyền' })
+  @ApiPropertyOptional({ description: 'Auto-generated from name if not provided' })
   @IsOptional()
   @IsString()
   @MaxLength(200)
   slug?: string;
 
-  @ApiPropertyOptional({ example: '27 Ngô Đức Kế, Quận 1' })
+  @ApiPropertyOptional({ example: '27 Ngo Duc Ke, District 1' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   address?: string;
 
-  @ApiPropertyOptional({ example: 'Quận 1' })
+  @ApiPropertyOptional({ example: 'District 1' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   district?: string;
 
-  @ApiPropertyOptional({ example: 10.7761, description: 'Latitude — dùng để set PostGIS location' })
+  @ApiPropertyOptional({ example: 10.7761, description: 'Latitude — used to set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   lat?: number;
 
-  @ApiPropertyOptional({ example: 106.7026, description: 'Longitude — dùng để set PostGIS location' })
+  @ApiPropertyOptional({ example: 106.7026, description: 'Longitude — used to set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
@@ -67,21 +67,21 @@ export class CreateCafeDto {
   @IsString()
   closingTime?: string;
 
-  @ApiPropertyOptional({ example: 50000, description: 'Giá tối thiểu (VND)' })
+  @ApiPropertyOptional({ example: 50000, description: 'Minimum price (VND)' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   priceMin?: number;
 
-  @ApiPropertyOptional({ example: 100000, description: 'Giá tối đa (VND), null = trên mức này' })
+  @ApiPropertyOptional({ example: 100000, description: 'Maximum price (VND), null = above this range' })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(0)
   priceMax?: number;
 
-  @ApiPropertyOptional({ example: 'Không gian công nghiệp ấn tượng' })
+  @ApiPropertyOptional({ example: 'Impressive industrial space' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -97,17 +97,17 @@ export class CreateCafeDto {
   @IsString()
   signatureDrink?: string;
 
-  @ApiPropertyOptional({ type: [String], example: ['yên tĩnh', 'vintage'] })
+  @ApiPropertyOptional({ type: [String], example: ['quiet', 'vintage'] })
   @IsOptional()
   @IsArray()
   vibes?: string[];
 
-  @ApiPropertyOptional({ type: [String], example: ['làm việc', 'học tập'] })
+  @ApiPropertyOptional({ type: [String], example: ['work', 'study'] })
   @IsOptional()
   @IsArray()
   purposes?: string[];
 
-  @ApiPropertyOptional({ type: [String], example: ['wifi', 'ổ cắm'] })
+  @ApiPropertyOptional({ type: [String], example: ['wifi', 'power outlets'] })
   @IsOptional()
   @IsArray()
   amenities?: string[];

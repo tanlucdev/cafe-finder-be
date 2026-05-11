@@ -6,7 +6,7 @@ export class ParseOptionalIntPipe implements PipeTransform {
     if (value === undefined || value === null || value === '') return undefined;
     const parsed = parseInt(value, 10);
     if (isNaN(parsed)) {
-      throw new BadRequestException(`Giá trị "${value}" phải là số nguyên`);
+      throw new BadRequestException(`Value "${value}" must be an integer`);
     }
     return parsed;
   }

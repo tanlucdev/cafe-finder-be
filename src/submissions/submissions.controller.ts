@@ -13,7 +13,7 @@ export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Đóng góp quán mới để admin duyệt' })
+  @ApiOperation({ summary: 'Submit a new cafe for admin review' })
   create(@CurrentUser() user: any, @Body() dto: CreateSubmissionDto) {
     return this.submissionsService.create(user.id, dto);
   }

@@ -2,12 +2,12 @@ import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSubmissionDto {
-  @ApiProperty({ example: 'Cafe Ẩn Mình' })
+  @ApiProperty({ example: 'Hidden Gem Cafe' })
   @IsString()
   @MaxLength(200)
   name: string;
 
-  @ApiPropertyOptional({ example: '123 Đường ABC, Quận 1' })
+  @ApiPropertyOptional({ example: '123 ABC Street, District 1' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
@@ -18,7 +18,7 @@ export class CreateSubmissionDto {
   @IsString()
   googleMapsUrl?: string;
 
-  @ApiPropertyOptional({ example: 'Quán này có view sân thượng đẹp lắm' })
+  @ApiPropertyOptional({ example: 'This cafe has a beautiful rooftop view' })
   @IsOptional()
   @IsString()
   @MaxLength(1000)
