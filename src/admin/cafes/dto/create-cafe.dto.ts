@@ -1,12 +1,12 @@
 import {
-  IsString,
-  IsOptional,
   IsArray,
   IsBoolean,
-  IsNumber,
   IsInt,
-  Min,
+  IsNumber,
+  IsOptional,
+  IsString,
   MaxLength,
+  Min,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
@@ -35,13 +35,13 @@ export class CreateCafeDto {
   @MaxLength(100)
   district?: string;
 
-  @ApiPropertyOptional({ example: 10.7761, description: 'Latitude — used to set PostGIS location' })
+  @ApiPropertyOptional({ example: 10.7761, description: 'Latitude used to set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()
   lat?: number;
 
-  @ApiPropertyOptional({ example: 106.7026, description: 'Longitude — used to set PostGIS location' })
+  @ApiPropertyOptional({ example: 106.7026, description: 'Longitude used to set PostGIS location' })
   @IsOptional()
   @Type(() => Number)
   @IsNumber()

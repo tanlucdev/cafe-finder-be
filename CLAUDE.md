@@ -9,23 +9,24 @@ NestJS REST API cho ứng dụng tìm kiếm cafe tại TP.HCM.
 - **Email**: Resend (`resend` package) — cấu hình qua `RESEND_API_KEY`
 - **Port**: 3001 — global prefix `/api`, Swagger tại `/api/docs`
 - **Deploy**: Render.com (xem Dockerfile)
+- **Package manager**: Yarn (`yarn`, `yarn build`, `yarn test`)
 
 ---
 
 ## Local Development
 
 ```bash
-npm install
-npm run prisma:generate
-npm run start:dev    # hot reload
-npm run start:prod   # production
+yarn
+yarn prisma:generate
+yarn start:dev    # hot reload
+yarn start:prod   # production
 ```
 
 ### Các lệnh Prisma hữu ích
 
 ```bash
-npm run prisma:studio    # GUI database browser
-npm run prisma:seed      # Seed data mẫu
+yarn prisma:studio    # GUI database browser
+yarn prisma:seed      # Seed data mẫu
 npx prisma db push       # Sync schema → DB (không tạo migration)
 ```
 
@@ -67,7 +68,7 @@ src/
 ├── cafes/          Browse, search, nearby (PostGIS), quiz-match
 ├── saved/          User saved cafes & collections
 ├── submissions/    User cafe submission flow
-├── admin/          CRUD cafes, review submissions, image upload
+├── admin/          Dashboard APIs split by domain: cafes, submissions, users, stats
 ├── storage/        Supabase image upload/delete
 ├── prisma/         PrismaService (global module)
 └── common/         Guards, decorators, filters, pipes
@@ -118,14 +119,22 @@ src/
 
 | Method | Path | Mô tả |
 |--------|------|-------|
-| GET | `/api/admin/cafes` | Tất cả cafe (kể cả unpublished) |
+| GET | `/api/admin/cafes` | Tất cả cafe, hỗ trợ filter `district`, `is_published`, `is_featured`, `search`, `page`, `limit` |
+| GET | `/api/admin/cafes/:id` | Chi tiết cafe |
 | POST | `/api/admin/cafes` | Tạo cafe mới |
-| PUT | `/api/admin/cafes/:id` | Cập nhật cafe |
+| PATCH | `/api/admin/cafes/:id` | Cập nhật cafe |
+| PUT | `/api/admin/cafes/:id` | Cập nhật cafe (legacy alias) |
 | DELETE | `/api/admin/cafes/:id` | Xóa cafe |
 | PATCH | `/api/admin/cafes/:id/publish` | Toggle publish/unpublish |
-| POST | `/api/admin/cafes/:id/images` | Upload ảnh ⚠️ |
+| PATCH | `/api/admin/cafes/:id/feature` | Toggle featured/featuredOrder |
+| POST | `/api/admin/cafes/:id/images` | Upload ảnh, tự cập nhật `images[]`/`coverImage` |
+| DELETE | `/api/admin/cafes/:id/images` | Xóa ảnh khỏi cafe |
 | GET | `/api/admin/submissions` | Danh sách submissions |
-| PATCH | `/api/admin/submissions/:id` | Duyệt/từ chối submission |
+| GET | `/api/admin/submissions/:id` | Chi tiết submission |
+| PATCH | `/api/admin/submissions/:id/approve` | Duyệt submission và tạo draft cafe |
+| PATCH | `/api/admin/submissions/:id/reject` | Từ chối submission |
+| GET | `/api/admin/users` | Danh sách user |
+| GET | `/api/admin/stats` | Số liệu dashboard |
 
 ---
 
@@ -175,7 +184,6 @@ GET /api/cafes/nearby?lat=10.78&lng=106.69&radius=2
 
 | Issue | Mô tả |
 |-------|-------|
-| ⚠️ Image upload | `POST /admin/cafes/:id/images` chỉ trả URL, không tự update `images[]`/`coverImage` trong cafe — cần gọi `PUT /admin/cafes/:id` riêng để gán |
 | ⚠️ Full-text search | Migration đã tạo `tsvector` index nhưng service dùng Prisma `contains` (slower) thay vì raw `to_tsvector` query |
 | ❌ Rate limiting | Chưa có `@nestjs/throttler` — auth endpoints có thể bị brute force |
 | ❌ Caching | Không có cache layer — mỗi request đều query DB |

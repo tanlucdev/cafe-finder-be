@@ -2,7 +2,7 @@
 
 ## 🔴 Cao (blocking hoặc UX quan trọng)
 
-- [ ] **Fix image upload**: `POST /admin/cafes/:id/images` phải tự cập nhật `images[]` + `coverImage` vào bảng cafes (hiện chỉ trả URL, cần gọi PUT riêng)
+- [x] **Fix image upload**: `POST /admin/cafes/:id/images` tự cập nhật `images[]` + `coverImage` vào bảng cafes
 - [ ] **User profile update**: Thêm `PATCH /api/auth/profile` để cập nhật `displayName`, avatar
 - [ ] **Đổi mật khẩu**: Thêm `PATCH /api/auth/password` (cần xác minh mật khẩu cũ)
 
