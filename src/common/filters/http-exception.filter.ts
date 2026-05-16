@@ -22,7 +22,12 @@ export class GlobalExceptionFilter implements ExceptionFilter {
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
-      message = exception.getResponse();
+      const res = exception.getResponse();
+      if (typeof res === 'string') {
+        message = res;
+      } else if (typeof res === 'object' && res !== null) {
+        message = (res as any).message ?? exception.message;
+      }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       this.logger.error(`Prisma error ${exception.code} on ${request.url}`, exception.message);
       if (exception.code === 'P2002') {
