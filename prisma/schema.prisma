@@ -102,6 +102,7 @@ model CafeSubmission {
   address       String?
   googleMapsUrl String?          @map("google_maps_url")
   note          String?
+  reviewNote    String?          @map("review_note")
   status        SubmissionStatus @default(pending)
   createdAt     DateTime         @default(now()) @map("created_at")
   submittedBy   User?            @relation(fields: [submittedById], references: [id])

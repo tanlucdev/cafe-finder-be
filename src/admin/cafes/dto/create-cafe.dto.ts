@@ -7,9 +7,10 @@ import {
   IsString,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 
 export class CreateCafeDto {
   @ApiProperty({ example: 'The Workshop Coffee' })
@@ -74,7 +75,10 @@ export class CreateCafeDto {
   @Min(0)
   priceMin?: number;
 
-  @ApiPropertyOptional({ example: 100000, description: 'Maximum price (VND), null = above this range' })
+  @ApiPropertyOptional({
+    example: 100000,
+    description: 'Maximum price (VND), null = above this range',
+  })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
@@ -139,10 +143,15 @@ export class CreateCafeDto {
 
   @ApiPropertyOptional()
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) => {
+    if (value === null || value === '' || value === undefined) return null;
+    const n = Number(value);
+    return isNaN(n) ? null : n;
+  })
+  @ValidateIf((_, value) => value !== null && value !== undefined)
   @IsInt()
   @Min(1)
-  featuredOrder?: number;
+  featuredOrder?: number | null;
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()

@@ -24,8 +24,11 @@ test('AdminCafesController delegates cafe actions to service', async () => {
     deleteCafe: async (id: string) => calls.push(['delete', id]),
     togglePublish: async (id: string) => calls.push(['publish', id]),
     toggleFeature: async (id: string, order?: number) => calls.push(['feature', id, order]),
-    uploadCafeImage: async (id: string, file: any) => calls.push(['upload', id, file.originalname]),
+    uploadCafeImage: async (id: string, file: any, setCover?: boolean) =>
+      calls.push(['upload', id, file.originalname, setCover === true]),
     deleteCafeImage: async (id: string, url: string) => calls.push(['deleteImage', id, url]),
+    reorderCafeImages: async (id: string, urls: string[]) =>
+      calls.push(['reorderImages', id, urls]),
   };
   const controller = new AdminCafesController(service as any);
 
@@ -37,8 +40,11 @@ test('AdminCafesController delegates cafe actions to service', async () => {
   await controller.deleteCafe('cafe-1');
   await controller.togglePublish('cafe-1');
   await controller.toggleFeature('cafe-1', { featuredOrder: 1 });
-  await controller.uploadImage('cafe-1', { originalname: 'image.webp' } as any);
+  await controller.uploadImage('cafe-1', 'true', { originalname: 'image.webp' } as any);
   await controller.deleteImage('cafe-1', { imageUrl: 'https://cdn.test/image.webp' });
+  await controller.reorderImages('cafe-1', {
+    imageUrls: ['https://cdn.test/b.webp', 'https://cdn.test/a.webp'],
+  });
 
   assert.deepEqual(calls, [
     ['list', { search: 'coffee' }],
@@ -49,8 +55,9 @@ test('AdminCafesController delegates cafe actions to service', async () => {
     ['delete', 'cafe-1'],
     ['publish', 'cafe-1'],
     ['feature', 'cafe-1', 1],
-    ['upload', 'cafe-1', 'image.webp'],
+    ['upload', 'cafe-1', 'image.webp', true],
     ['deleteImage', 'cafe-1', 'https://cdn.test/image.webp'],
+    ['reorderImages', 'cafe-1', ['https://cdn.test/b.webp', 'https://cdn.test/a.webp']],
   ]);
 });
 

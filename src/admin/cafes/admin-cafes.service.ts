@@ -6,6 +6,14 @@ import { AdminCafeFilterDto } from './dto/admin-cafe-filter.dto';
 import { CreateCafeDto } from './dto/create-cafe.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
 
+function parseTimeString(time: string | null | undefined): Date | null {
+  if (!time) return null;
+  const [hours, minutes] = time.split(':').map(Number);
+  const d = new Date(0);
+  d.setUTCHours(hours, minutes, 0, 0);
+  return d;
+}
+
 @Injectable()
 export class AdminCafesService {
   constructor(
@@ -68,10 +76,17 @@ export class AdminCafesService {
   }
 
   async createCafe(dto: CreateCafeDto) {
-    const { lat, lng, slug: dtoSlug, ...cafeData } = dto;
+    const { lat, lng, slug: dtoSlug, openingTime, closingTime, ...cafeData } = dto;
     const slug = dtoSlug || slugify(dto.name, { lower: true, locale: 'vi', strict: true });
 
-    const cafe = await this.prisma.cafe.create({ data: { ...cafeData, slug } });
+    const cafe = await this.prisma.cafe.create({
+      data: {
+        ...cafeData,
+        slug,
+        ...(openingTime !== undefined && { openingTime: parseTimeString(openingTime) }),
+        ...(closingTime !== undefined && { closingTime: parseTimeString(closingTime) }),
+      },
+    });
 
     if (lat != null && lng != null) {
       await this.prisma.$executeRaw`
@@ -87,7 +102,7 @@ export class AdminCafesService {
   async updateCafe(id: string, dto: UpdateCafeDto) {
     await this.findCafeOrThrow(id);
 
-    const { lat, lng, slug: dtoSlug, name, ...rest } = dto;
+    const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
     const data: any = { ...rest };
 
     if (name) {
@@ -97,6 +112,8 @@ export class AdminCafesService {
       }
     }
     if (dtoSlug) data.slug = dtoSlug;
+    if (openingTime !== undefined) data.openingTime = parseTimeString(openingTime);
+    if (closingTime !== undefined) data.closingTime = parseTimeString(closingTime);
 
     const cafe = await this.prisma.cafe.update({ where: { id }, data });
 
@@ -138,16 +155,21 @@ export class AdminCafesService {
     });
   }
 
-  async uploadCafeImage(id: string, file: Express.Multer.File) {
+  async uploadCafeImage(id: string, file: Express.Multer.File, setCover = false) {
     const cafe = await this.findCafeOrThrow(id);
     const url = await this.storage.uploadImage(file, `cafes/${id}`);
+
+    const newImages = setCover ? [url, ...cafe.images] : [...cafe.images, url];
+    const newOrientations = setCover
+      ? ['unknown', ...(cafe.imageOrientations ?? [])]
+      : [...(cafe.imageOrientations ?? []), 'unknown'];
 
     const updated = await this.prisma.cafe.update({
       where: { id },
       data: {
-        images: [...cafe.images, url],
-        imageOrientations: [...(cafe.imageOrientations ?? []), 'unknown'],
-        coverImage: cafe.coverImage ?? url,
+        images: newImages,
+        imageOrientations: newOrientations,
+        coverImage: setCover ? url : (cafe.coverImage ?? url),
       },
     });
 
@@ -177,6 +199,42 @@ export class AdminCafesService {
     return this.prisma.cafe.update({
       where: { id },
       data: { images, imageOrientations, coverImage },
+    });
+  }
+
+  async reorderCafeImages(id: string, imageUrls: string[]) {
+    const cafe = await this.findCafeOrThrow(id);
+
+    if (imageUrls.length !== cafe.images.length) {
+      throw new BadRequestException('Image order must include every existing image exactly once');
+    }
+
+    const requestedUrls = new Set(imageUrls);
+    if (requestedUrls.size !== imageUrls.length) {
+      throw new BadRequestException('Image order cannot contain duplicate URLs');
+    }
+
+    const existingUrls = new Set(cafe.images);
+    const hasOnlyExistingImages = imageUrls.every((url) => existingUrls.has(url));
+    if (!hasOnlyExistingImages) {
+      throw new BadRequestException('Image order contains URLs that do not belong to this cafe');
+    }
+
+    const orientationsByUrl = new Map(
+      cafe.images.map((url, index) => [url, cafe.imageOrientations?.[index] ?? 'unknown']),
+    );
+    const imageOrientations = imageUrls.map((url) => orientationsByUrl.get(url) ?? 'unknown');
+
+    return this.prisma.cafe.update({
+      where: { id },
+      data: {
+        images: imageUrls,
+        imageOrientations,
+        coverImage:
+          cafe.coverImage && requestedUrls.has(cafe.coverImage)
+            ? cafe.coverImage
+            : (imageUrls[0] ?? null),
+      },
     });
   }
 

@@ -21,7 +21,12 @@ export class CafesController {
   @ApiOperation({ summary: 'Find cafes near a location (PostGIS)' })
   @ApiQuery({ name: 'lat', required: true, type: Number })
   @ApiQuery({ name: 'lng', required: true, type: Number })
-  @ApiQuery({ name: 'radius', required: false, type: Number, description: 'Radius in km, default 2' })
+  @ApiQuery({
+    name: 'radius',
+    required: false,
+    type: Number,
+    description: 'Radius in km, default 2',
+  })
   findNearby(
     @Query('lat') lat: number,
     @Query('lng') lng: number,
@@ -42,10 +47,7 @@ export class CafesController {
   @ApiOperation({ summary: 'Recommend cafes by vibe and purpose' })
   @ApiQuery({ name: 'vibes', required: false, example: 'Cozy,Artistic' })
   @ApiQuery({ name: 'purposes', required: false, example: 'Work,Study' })
-  quizMatch(
-    @Query('vibes') vibes: string,
-    @Query('purposes') purposes: string,
-  ) {
+  quizMatch(@Query('vibes') vibes: string, @Query('purposes') purposes: string) {
     const vibeArr = vibes ? vibes.split(',').filter(Boolean) : [];
     const purposeArr = purposes ? purposes.split(',').filter(Boolean) : [];
     return this.cafesService.quizMatch(vibeArr, purposeArr);

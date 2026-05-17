@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -28,13 +28,13 @@ export class AdminSubmissionsController {
 
   @Patch(':id/approve')
   @ApiOperation({ summary: 'Approve submission and create draft cafe' })
-  approveSubmission(@Param('id') id: string) {
-    return this.adminSubmissionsService.approveSubmission(id);
+  approveSubmission(@Param('id') id: string, @Body('note') note?: string) {
+    return this.adminSubmissionsService.approveSubmission(id, note);
   }
 
   @Patch(':id/reject')
   @ApiOperation({ summary: 'Reject submission' })
-  rejectSubmission(@Param('id') id: string) {
-    return this.adminSubmissionsService.rejectSubmission(id);
+  rejectSubmission(@Param('id') id: string, @Body('note') note?: string) {
+    return this.adminSubmissionsService.rejectSubmission(id, note);
   }
 }

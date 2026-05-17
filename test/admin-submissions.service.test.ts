@@ -92,6 +92,34 @@ test('approveSubmission marks submission approved and creates unpublished draft 
   assert.equal(result.cafe.isPublished, false);
 });
 
+test('approveSubmission stores an optional admin review note without changing submission note', async () => {
+  let submissionUpdate: any;
+  const { service } = createService({
+    prisma: {
+      cafeSubmission: {
+        findUnique: async () => ({
+          id: 'submission-1',
+          name: 'Quán Mới',
+          address: 'District 1',
+          googleMapsUrl: 'https://maps.test',
+          note: 'User submitted note',
+        }),
+        update: async (args: any) => {
+          submissionUpdate = args;
+          return { id: args.where.id, ...args.data };
+        },
+      },
+      cafe: {
+        create: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
+      },
+    },
+  });
+
+  await service.approveSubmission('submission-1', '  Looks good  ');
+
+  assert.deepEqual(submissionUpdate.data, { status: 'approved', reviewNote: 'Looks good' });
+});
+
 test('rejectSubmission only marks submission rejected', async () => {
   let updateArgs: any;
   const { service } = createService({
@@ -110,4 +138,24 @@ test('rejectSubmission only marks submission rejected', async () => {
 
   assert.deepEqual(updateArgs.data, { status: 'rejected' });
   assert.equal(result.status, 'rejected');
+});
+
+test('rejectSubmission stores an optional admin review note', async () => {
+  let updateArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafeSubmission: {
+        findUnique: async () => ({ id: 'submission-1', name: 'Quán Mới' }),
+        update: async (args: any) => {
+          updateArgs = args;
+          return { id: args.where.id, ...args.data };
+        },
+      },
+    },
+  });
+
+  const result = await service.rejectSubmission('submission-1', 'Address is incomplete');
+
+  assert.deepEqual(updateArgs.data, { status: 'rejected', reviewNote: 'Address is incomplete' });
+  assert.equal(result.reviewNote, 'Address is incomplete');
 });

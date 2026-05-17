@@ -29,16 +29,20 @@ export class AdminSubmissionsService {
     return submission;
   }
 
-  async approveSubmission(id: string) {
+  async approveSubmission(id: string, note?: string) {
     const submission = await this.prisma.cafeSubmission.findUnique({ where: { id } });
     if (!submission) throw new NotFoundException(`Submission not found: ${id}`);
 
     const slug = slugify(submission.name, { lower: true, locale: 'vi', strict: true });
+    const reviewNote = note?.trim();
 
     const [updatedSubmission, cafe] = await Promise.all([
       this.prisma.cafeSubmission.update({
         where: { id },
-        data: { status: 'approved' },
+        data: {
+          status: 'approved',
+          ...(note !== undefined ? { reviewNote: reviewNote || null } : {}),
+        },
       }),
       this.prisma.cafe.create({
         data: {
@@ -54,13 +58,17 @@ export class AdminSubmissionsService {
     return { submission: updatedSubmission, cafe };
   }
 
-  async rejectSubmission(id: string) {
+  async rejectSubmission(id: string, note?: string) {
     const submission = await this.prisma.cafeSubmission.findUnique({ where: { id } });
     if (!submission) throw new NotFoundException(`Submission not found: ${id}`);
+    const reviewNote = note?.trim();
 
     return this.prisma.cafeSubmission.update({
       where: { id },
-      data: { status: 'rejected' },
+      data: {
+        status: 'rejected',
+        ...(note !== undefined ? { reviewNote: reviewNote || null } : {}),
+      },
     });
   }
 }

@@ -33,6 +33,6 @@ export class SavedController {
   @Delete(':cafeId')
   @ApiOperation({ summary: 'Remove a cafe from saved list' })
   remove(@CurrentUser() user: any, @Param('cafeId') cafeId: string) {
-    return this.savedService.remove(user.id, cafeId);  
+    return this.savedService.remove(user.id, cafeId);
   }
 }

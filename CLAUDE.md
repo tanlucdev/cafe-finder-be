@@ -128,6 +128,7 @@ src/
 | PATCH | `/api/admin/cafes/:id/publish` | Toggle publish/unpublish |
 | PATCH | `/api/admin/cafes/:id/feature` | Toggle featured/featuredOrder |
 | POST | `/api/admin/cafes/:id/images` | Upload ảnh, tự cập nhật `images[]`/`coverImage` |
+| PATCH | `/api/admin/cafes/:id/images/reorder` | Sắp xếp lại thứ tự ảnh theo `imageUrls[]` |
 | DELETE | `/api/admin/cafes/:id/images` | Xóa ảnh khỏi cafe |
 | GET | `/api/admin/submissions` | Danh sách submissions |
 | GET | `/api/admin/submissions/:id` | Chi tiết submission |

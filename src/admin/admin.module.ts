@@ -5,11 +5,6 @@ import { AdminSubmissionsModule } from './submissions/admin-submissions.module';
 import { AdminUsersModule } from './users/admin-users.module';
 
 @Module({
-  imports: [
-    AdminCafesModule,
-    AdminSubmissionsModule,
-    AdminUsersModule,
-    AdminStatsModule,
-  ],
+  imports: [AdminCafesModule, AdminSubmissionsModule, AdminUsersModule, AdminStatsModule],
 })
 export class AdminModule {}

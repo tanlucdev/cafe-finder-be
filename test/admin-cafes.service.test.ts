@@ -8,7 +8,12 @@ function createService(overrides: any = {}) {
     cafe: {
       findMany: async () => [],
       count: async () => 0,
-      findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [], coverImage: null }),
+      findUnique: async () => ({
+        id: 'cafe-1',
+        images: [],
+        imageOrientations: [],
+        coverImage: null,
+      }),
       create: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
       update: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
       delete: async ({ where }: any) => ({ id: where.id }),
@@ -124,7 +129,12 @@ test('togglePublish and toggleFeature update the expected fields', async () => {
   const { service } = createService({
     prisma: {
       cafe: {
-        findUnique: async () => ({ id: 'cafe-1', isPublished: false, isFeatured: false, images: [] }),
+        findUnique: async () => ({
+          id: 'cafe-1',
+          isPublished: false,
+          isFeatured: false,
+          images: [],
+        }),
         update: async (args: any) => {
           updates.push(args);
           return { id: args.where.id, ...args.data };
@@ -222,6 +232,74 @@ test('deleteCafeImage rejects URLs that do not belong to the cafe', async () => 
 
   await assert.rejects(
     () => service.deleteCafeImage('cafe-1', 'https://cdn.test/missing.webp'),
+    BadRequestException,
+  );
+});
+
+test('reorderCafeImages updates image order and keeps matching orientations', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: ['https://cdn.test/a.webp', 'https://cdn.test/b.webp', 'https://cdn.test/c.webp'],
+          imageOrientations: ['landscape', 'portrait', 'unknown'],
+          coverImage: 'https://cdn.test/b.webp',
+        }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return data;
+        },
+      },
+    },
+  });
+
+  const result = await service.reorderCafeImages('cafe-1', [
+    'https://cdn.test/c.webp',
+    'https://cdn.test/a.webp',
+    'https://cdn.test/b.webp',
+  ]);
+
+  assert.deepEqual(updateData.images, [
+    'https://cdn.test/c.webp',
+    'https://cdn.test/a.webp',
+    'https://cdn.test/b.webp',
+  ]);
+  assert.deepEqual(updateData.imageOrientations, ['unknown', 'landscape', 'portrait']);
+  assert.equal(updateData.coverImage, 'https://cdn.test/b.webp');
+  assert.deepEqual(result, updateData);
+});
+
+test('reorderCafeImages rejects incomplete, foreign, or duplicate image URLs', async () => {
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: ['https://cdn.test/a.webp', 'https://cdn.test/b.webp'],
+          imageOrientations: ['landscape', 'portrait'],
+          coverImage: 'https://cdn.test/a.webp',
+        }),
+      },
+    },
+  });
+
+  await assert.rejects(
+    () => service.reorderCafeImages('cafe-1', ['https://cdn.test/a.webp']),
+    BadRequestException,
+  );
+  await assert.rejects(
+    () =>
+      service.reorderCafeImages('cafe-1', [
+        'https://cdn.test/a.webp',
+        'https://cdn.test/missing.webp',
+      ]),
+    BadRequestException,
+  );
+  await assert.rejects(
+    () =>
+      service.reorderCafeImages('cafe-1', ['https://cdn.test/a.webp', 'https://cdn.test/a.webp']),
     BadRequestException,
   );
 });

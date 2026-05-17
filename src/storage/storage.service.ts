@@ -1,5 +1,30 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { execFile } from 'child_process';
+import { promises as fsp } from 'fs';
+import { tmpdir } from 'os';
+import { basename, extname, join } from 'path';
+import sharp = require('sharp');
+import { promisify } from 'util';
+
+const TARGET_BYTES = 800 * 1024;
+const QUALITY_STEPS = [80, 76, 72, 68, 64, 60];
+const WEBP_OPTIONS = {
+  effort: 6,
+  smartSubsample: true,
+};
+const HEIF_CONVERT_COMMAND = 'heif-convert';
+const SIPS_PATH = '/usr/bin/sips';
+
+const run = promisify(execFile);
+
+function isHeicImage(file: Express.Multer.File) {
+  const extension = extname(file.originalname).toLowerCase();
+  return (
+    ['.heic', '.heif', '.heics', '.heifs'].includes(extension) ||
+    /image\/hei[cf]/i.test(file.mimetype)
+  );
+}
 
 @Injectable()
 export class StorageService {
@@ -11,6 +36,91 @@ export class StorageService {
     this.supabaseUrl = config.get('SUPABASE_URL', '');
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
+
+    if (this.supabaseKey && !this.supabaseKey.startsWith('eyJ')) {
+      throw new Error(
+        'SUPABASE_SERVICE_KEY is not a valid JWT (must start with "eyJ"). ' +
+          'Copy the service_role key from Supabase → Project Settings → API.',
+      );
+    }
+  }
+
+  private async createHeicPngFallback(file: Express.Multer.File): Promise<{
+    buffer: Buffer;
+    cleanup: () => Promise<void>;
+  }> {
+    const extension = extname(file.originalname).toLowerCase() || '.heic';
+    const tempBase = join(
+      tmpdir(),
+      `cafe-image-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    );
+    const inputPath = `${tempBase}${extension}`;
+    const outputPath = `${tempBase}.png`;
+    const fallbackErrors: string[] = [];
+
+    await fsp.writeFile(inputPath, file.buffer);
+
+    const cleanup = async () => {
+      await Promise.all([fsp.rm(inputPath, { force: true }), fsp.rm(outputPath, { force: true })]);
+    };
+
+    try {
+      await run(HEIF_CONVERT_COMMAND, [inputPath, outputPath]);
+      return { buffer: await fsp.readFile(outputPath), cleanup };
+    } catch (error) {
+      fallbackErrors.push(`heif-convert fallback failed: ${(error as Error).message}`);
+      await fsp.rm(outputPath, { force: true });
+    }
+
+    try {
+      await run(SIPS_PATH, ['-s', 'format', 'png', inputPath, '--out', outputPath]);
+      return { buffer: await fsp.readFile(outputPath), cleanup };
+    } catch (error) {
+      fallbackErrors.push(`sips fallback failed: ${(error as Error).message}`);
+      await cleanup();
+    }
+
+    throw new Error(fallbackErrors.join('; '));
+  }
+
+  private async getSharpInput(file: Express.Multer.File): Promise<{
+    buffer: Buffer;
+    cleanup?: () => Promise<void>;
+  }> {
+    if (!isHeicImage(file)) return { buffer: file.buffer };
+
+    try {
+      await sharp(file.buffer)
+        .rotate()
+        .webp({ ...WEBP_OPTIONS, quality: QUALITY_STEPS[0] })
+        .toBuffer();
+      return { buffer: file.buffer };
+    } catch {
+      return this.createHeicPngFallback(file);
+    }
+  }
+
+  private async convertToBestWebp(file: Express.Multer.File): Promise<Buffer> {
+    const { buffer, cleanup } = await this.getSharpInput(file);
+    const candidates: Buffer[] = [];
+
+    try {
+      for (const quality of QUALITY_STEPS) {
+        const candidate = await sharp(buffer)
+          .rotate()
+          .webp({ ...WEBP_OPTIONS, quality })
+          .toBuffer();
+
+        candidates.push(candidate);
+        if (candidate.byteLength <= TARGET_BYTES) break;
+      }
+
+      return (
+        candidates.find((candidate) => candidate.byteLength <= TARGET_BYTES) ?? candidates.at(-1)
+      );
+    } finally {
+      await cleanup?.();
+    }
   }
 
   async uploadImage(file: Express.Multer.File, folder: string = 'cafes'): Promise<string> {
@@ -18,7 +128,17 @@ export class StorageService {
       throw new InternalServerErrorException('Supabase is not configured');
     }
 
-    const fileName = `${folder}/${Date.now()}-${file.originalname.replace(/\s/g, '_')}`;
+    let webpBuffer: Buffer;
+    try {
+      webpBuffer = await this.convertToBestWebp(file);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Image conversion failed: ${(error as Error).message}`,
+      );
+    }
+
+    const baseName = basename(file.originalname, extname(file.originalname)).replace(/\s/g, '_');
+    const fileName = `${folder}/${Date.now()}-${baseName}.webp`;
 
     const response = await fetch(
       `${this.supabaseUrl}/storage/v1/object/${this.bucket}/${fileName}`,
@@ -26,15 +146,34 @@ export class StorageService {
         method: 'POST',
         headers: {
           Authorization: `Bearer ${this.supabaseKey}`,
-          'Content-Type': file.mimetype,
+          'Content-Type': 'image/webp',
         },
-        body: file.buffer as any,
+        body: webpBuffer as any,
       },
     );
 
     if (!response.ok) {
-      const error = await response.text();
-      throw new InternalServerErrorException(`Image upload failed: ${error}`);
+      const raw = await response.text();
+      let parsed: { statusCode?: string; error?: string; message?: string } = {};
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        /* not JSON */
+      }
+
+      if (
+        response.status === 401 ||
+        response.status === 403 ||
+        parsed.message?.includes('JWS') ||
+        parsed.message?.includes('JWT')
+      ) {
+        throw new InternalServerErrorException(
+          'Supabase Storage auth failed (check SUPABASE_SERVICE_KEY and SUPABASE_URL in .env). ' +
+            `Supabase said: ${parsed.message ?? raw}`,
+        );
+      }
+
+      throw new InternalServerErrorException(`Image upload failed: ${parsed.message ?? raw}`);
     }
 
     return `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${fileName}`;
