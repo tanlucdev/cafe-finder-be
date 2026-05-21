@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
-import * as compression from 'compression';
+import compression from 'compression';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,7 +14,7 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowed = [
-        process.env.FRONTEND_URL || 'http://localhost:3000',
+        process.env.FRONTEND_URL || process.env.CMS_URL || 'http://localhost:3000',
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:4173',
