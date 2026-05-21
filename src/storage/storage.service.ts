@@ -2,6 +2,7 @@ import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'child_process';
 import { promises as fsp } from 'fs';
+import type {} from 'multer';
 import { tmpdir } from 'os';
 import { basename, extname, join } from 'path';
 import sharp = require('sharp');
@@ -17,8 +18,13 @@ const HEIF_CONVERT_COMMAND = 'heif-convert';
 const SIPS_PATH = '/usr/bin/sips';
 
 const run = promisify(execFile);
+type UploadedFile = Express.Multer.File;
 
-function isHeicImage(file: Express.Multer.File) {
+function isSupportedSupabaseSecret(key: string) {
+  return key.startsWith('eyJ') || key.startsWith('sb_secret_');
+}
+
+function isHeicImage(file: UploadedFile) {
   const extension = extname(file.originalname).toLowerCase();
   return (
     ['.heic', '.heif', '.heics', '.heifs'].includes(extension) ||
@@ -37,15 +43,15 @@ export class StorageService {
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
 
-    if (this.supabaseKey && !this.supabaseKey.startsWith('eyJ')) {
+    if (this.supabaseKey && !isSupportedSupabaseSecret(this.supabaseKey)) {
       throw new Error(
-        'SUPABASE_SERVICE_KEY is not a valid JWT (must start with "eyJ"). ' +
-          'Copy the service_role key from Supabase → Project Settings → API.',
+        'SUPABASE_SERVICE_KEY must be a Supabase secret key. ' +
+          'Use a new sb_secret_ key or a legacy service_role JWT from Supabase Project Settings → API Keys.',
       );
     }
   }
 
-  private async createHeicPngFallback(file: Express.Multer.File): Promise<{
+  private async createHeicPngFallback(file: UploadedFile): Promise<{
     buffer: Buffer;
     cleanup: () => Promise<void>;
   }> {
@@ -83,7 +89,7 @@ export class StorageService {
     throw new Error(fallbackErrors.join('; '));
   }
 
-  private async getSharpInput(file: Express.Multer.File): Promise<{
+  private async getSharpInput(file: UploadedFile): Promise<{
     buffer: Buffer;
     cleanup?: () => Promise<void>;
   }> {
@@ -100,7 +106,7 @@ export class StorageService {
     }
   }
 
-  private async convertToBestWebp(file: Express.Multer.File): Promise<Buffer> {
+  private async convertToBestWebp(file: UploadedFile): Promise<Buffer> {
     const { buffer, cleanup } = await this.getSharpInput(file);
     const candidates: Buffer[] = [];
 
@@ -123,7 +129,7 @@ export class StorageService {
     }
   }
 
-  async uploadImage(file: Express.Multer.File, folder: string = 'cafes'): Promise<string> {
+  async uploadImage(file: UploadedFile, folder: string = 'cafes'): Promise<string> {
     if (!this.supabaseUrl || !this.supabaseKey) {
       throw new InternalServerErrorException('Supabase is not configured');
     }
@@ -145,6 +151,7 @@ export class StorageService {
       {
         method: 'POST',
         headers: {
+          apikey: this.supabaseKey,
           Authorization: `Bearer ${this.supabaseKey}`,
           'Content-Type': 'image/webp',
         },
@@ -189,7 +196,10 @@ export class StorageService {
 
     await fetch(`${this.supabaseUrl}/storage/v1/object/${this.bucket}/${path}`, {
       method: 'DELETE',
-      headers: { Authorization: `Bearer ${this.supabaseKey}` },
+      headers: {
+        apikey: this.supabaseKey,
+        Authorization: `Bearer ${this.supabaseKey}`,
+      },
     });
   }
 }

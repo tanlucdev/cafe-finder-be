@@ -1,10 +1,13 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import type {} from 'multer';
 import slugify from 'slugify';
 import { PrismaService } from '../../prisma/prisma.service';
 import { StorageService } from '../../storage/storage.service';
 import { AdminCafeFilterDto } from './dto/admin-cafe-filter.dto';
 import { CreateCafeDto } from './dto/create-cafe.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
+
+type UploadedFile = Express.Multer.File;
 
 function parseTimeString(time: string | null | undefined): Date | null {
   if (!time) return null;
@@ -155,7 +158,7 @@ export class AdminCafesService {
     });
   }
 
-  async uploadCafeImage(id: string, file: Express.Multer.File, setCover = false) {
+  async uploadCafeImage(id: string, file: UploadedFile, setCover = false) {
     const cafe = await this.findCafeOrThrow(id);
     const url = await this.storage.uploadImage(file, `cafes/${id}`);
 

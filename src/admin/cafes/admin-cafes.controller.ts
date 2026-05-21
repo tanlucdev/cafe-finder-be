@@ -17,6 +17,7 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiTags } from '@nestjs/swagger';
+import type {} from 'multer';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
@@ -28,6 +29,8 @@ import { DeleteCafeImageDto } from './dto/delete-cafe-image.dto';
 import { ReorderCafeImagesDto } from './dto/reorder-cafe-images.dto';
 import { ToggleFeatureDto } from './dto/toggle-feature.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
+
+type UploadedFile = Express.Multer.File;
 
 const ACCEPTED_IMAGE_MIME_TYPES = new Set([
   'image/jpeg',
@@ -44,7 +47,7 @@ const ACCEPTED_IMAGE_MIME_TYPES = new Set([
 const ACCEPTED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heics|heif|heifs|avif|tiff?)$/i;
 
 class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
-  isValid(file?: Express.Multer.File): boolean {
+  isValid(file?: UploadedFile): boolean {
     if (!file) return false;
     return (
       ACCEPTED_IMAGE_MIME_TYPES.has(file.mimetype) ||
@@ -131,7 +134,7 @@ export class AdminCafesController {
         ],
       }),
     )
-    file: Express.Multer.File,
+    file: UploadedFile,
   ) {
     return this.adminCafesService.uploadCafeImage(id, file, cover === 'true');
   }
