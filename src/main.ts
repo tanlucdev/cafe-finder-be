@@ -5,6 +5,15 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import compression from 'compression';
 
+const normalizeOrigin = (origin?: string) => origin?.replace(/\/$/, '');
+const getHostname = (origin: string) => {
+  try {
+    return new URL(origin).hostname;
+  } catch {
+    return origin;
+  }
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -14,20 +23,26 @@ async function bootstrap() {
   app.enableCors({
     origin: (origin, callback) => {
       const allowed = [
-        process.env.FRONTEND_URL || process.env.CMS_URL || 'http://localhost:3000',
+        normalizeOrigin(process.env.FRONTEND_URL),
+        normalizeOrigin(process.env.CMS_URL),
         'http://localhost:3000',
         'http://localhost:5173',
         'http://localhost:4173',
-      ];
+      ].filter(Boolean);
+
+      const requestOrigin = normalizeOrigin(origin);
+      const requestHostname = requestOrigin ? getHostname(requestOrigin) : '';
+
       if (
-        !origin ||
-        allowed.includes(origin) ||
-        /\.vercel\.app$/.test(origin) ||
-        /cafemaps\.net$/.test(origin)
+        !requestOrigin ||
+        allowed.includes(requestOrigin) ||
+        /\.vercel\.app$/.test(requestOrigin) ||
+        requestHostname === 'cafemaps.net' ||
+        requestHostname.endsWith('.cafemaps.net')
       ) {
         callback(null, true);
       } else {
-        callback(new Error(`CORS blocked: ${origin}`));
+        callback(new Error(`CORS blocked: ${requestOrigin}`));
       }
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
