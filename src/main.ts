@@ -3,7 +3,7 @@ import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
-import compression from 'compression';
+import compression = require('compression');
 
 const normalizeOrigin = (origin?: string) => origin?.replace(/\/$/, '');
 const getHostname = (origin: string) => {
