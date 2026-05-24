@@ -67,6 +67,7 @@ test('listCafes applies admin filters and pagination', async () => {
   assert.equal(findManyArgs.where.isPublished, false);
   assert.equal(findManyArgs.where.isFeatured, true);
   assert.equal(findManyArgs.where.OR.length, 3);
+  assert.equal(findManyArgs.select.parkingLocation, true);
   assert.deepEqual(countArgs, { where: findManyArgs.where });
   assert.deepEqual(result.meta, { total: 25, page: 2, limit: 10, totalPages: 3 });
 });
@@ -79,7 +80,7 @@ test('getCafe throws when cafe does not exist', async () => {
   await assert.rejects(() => service.getCafe('missing'), NotFoundException);
 });
 
-test('createCafe generates slug and updates PostGIS location when lat/lng are present', async () => {
+test('createCafe generates slug, persists parkingLocation, and updates PostGIS location', async () => {
   let createdData: any;
   let rawCalled = false;
   const { service } = createService({
@@ -96,14 +97,20 @@ test('createCafe generates slug and updates PostGIS location when lat/lng are pr
     },
   });
 
-  const result = await service.createCafe({ name: 'Cà Phê Sáng', lat: 10.1, lng: 106.2 });
+  const result = await service.createCafe({
+    name: 'Cà Phê Sáng',
+    lat: 10.1,
+    lng: 106.2,
+    parkingLocation: 'Hầm giữ xe dưới tòa nhà',
+  });
 
   assert.equal(createdData.slug, 'ca-phe-sang');
+  assert.equal(createdData.parkingLocation, 'Hầm giữ xe dưới tòa nhà');
   assert.equal(result.slug, 'ca-phe-sang');
   assert.equal(rawCalled, true);
 });
 
-test('updateCafe regenerates slug from name unless slug is provided', async () => {
+test('updateCafe regenerates slug from name unless slug is provided and updates parkingLocation', async () => {
   let updateArgs: any;
   const { service } = createService({
     prisma: {
@@ -122,6 +129,9 @@ test('updateCafe regenerates slug from name unless slug is provided', async () =
 
   await service.updateCafe('cafe-1', { name: 'Cafe Moi', slug: 'custom-slug' });
   assert.equal(updateArgs.data.slug, 'custom-slug');
+
+  await service.updateCafe('cafe-1', { parkingLocation: 'Gửi xe trước quán' });
+  assert.equal(updateArgs.data.parkingLocation, 'Gửi xe trước quán');
 });
 
 test('togglePublish and toggleFeature update the expected fields', async () => {

@@ -18,7 +18,7 @@ export class CafesController {
   // Specific routes must be placed BEFORE /:slug
   @Get('nearby')
   @Header('Cache-Control', 'public, max-age=30')
-  @ApiOperation({ summary: 'Find cafes near a location (PostGIS)' })
+  @ApiOperation({ summary: 'Find cafes near a location (PostGIS, optional OSRM route distance)' })
   @ApiQuery({ name: 'lat', required: true, type: Number })
   @ApiQuery({ name: 'lng', required: true, type: Number })
   @ApiQuery({
@@ -27,12 +27,24 @@ export class CafesController {
     type: Number,
     description: 'Radius in km, default 2',
   })
+  @ApiQuery({
+    name: 'distanceMode',
+    required: false,
+    enum: ['straight', 'route'],
+    description: 'straight = PostGIS direct distance, route = OSRM driving distance with fallback',
+  })
   findNearby(
     @Query('lat') lat: number,
     @Query('lng') lng: number,
     @Query('radius') radius: number = 2,
+    @Query('distanceMode') distanceMode: 'straight' | 'route' = 'straight',
   ) {
-    return this.cafesService.findNearby(+lat, +lng, +radius);
+    return this.cafesService.findNearby(
+      +lat,
+      +lng,
+      +radius,
+      distanceMode === 'route' ? 'route' : 'straight',
+    );
   }
 
   @Get('districts')

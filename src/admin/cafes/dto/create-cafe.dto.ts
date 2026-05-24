@@ -116,6 +116,12 @@ export class CreateCafeDto {
   @IsArray()
   amenities?: string[];
 
+  @ApiPropertyOptional({ example: 'Basement parking available' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  parkingLocation?: string | null;
+
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()
   @IsArray()

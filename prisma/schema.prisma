@@ -55,7 +55,7 @@ model Cafe {
   vibes            String[]
   purposes         String[]
   amenities        String[]
-  parking_location String?
+  parkingLocation  String?                   @map("parking_location")
   images           String[]
   imageOrientations String[]                 @default([]) @map("image_orientations")
   coverImage       String?                   @map("cover_image")

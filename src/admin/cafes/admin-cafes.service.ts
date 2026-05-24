@@ -55,6 +55,7 @@ export class AdminCafesService {
           priceMin: true,
           priceMax: true,
           oneLiner: true,
+          parkingLocation: true,
           vibes: true,
           purposes: true,
           isFeatured: true,

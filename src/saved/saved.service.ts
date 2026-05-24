@@ -20,6 +20,7 @@ export class SavedService {
             priceMin: true,
             priceMax: true,
             oneLiner: true,
+            parkingLocation: true,
             vibes: true,
             coverImage: true,
             isFeatured: true,

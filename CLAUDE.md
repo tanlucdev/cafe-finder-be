@@ -156,12 +156,15 @@ src/
 ## PostGIS Nearby Search
 
 ```
-GET /api/cafes/nearby?lat=10.78&lng=106.69&radius=2
+GET /api/cafes/nearby?lat=10.78&lng=106.69&radius=2&distanceMode=route
 ```
 
 - `radius`: km, default 2km
+- `distanceMode`: `straight` (default, PostGIS đường chim bay) hoặc `route` (OSRM driving)
 - Trả về tối đa 20 cafe, sort theo `distance_km` tăng dần
-- Dùng `ST_DWithin` (lọc radius) + `ST_Distance` (tính khoảng cách chính xác)
+- Dùng `ST_DWithin` (lọc radius) + `ST_Distance` (tính khoảng cách đường chim bay)
+- Khi `distanceMode=route` và `OSRM_BASE_URL` được cấu hình, backend gọi OSRM `/table` để ghi đè `distance_km`, thêm `duration_min`, `distance_mode=route`, `straight_distance_km`
+- Nếu OSRM lỗi/chưa cấu hình, fallback `distance_mode=straight`
 - Kiểu dữ liệu: `geography` SRID 4326 (độ chính xác cao hơn `geometry`)
 - Cột `location` được trigger tự cập nhật khi `lat`/`lng` thay đổi
 - GIST spatial index trên `location`

@@ -1,6 +1,31 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
+import { RouteDistanceService } from './route-distance.service';
+
+type DistanceMode = 'straight' | 'route';
+
+interface NearbyCafeRow {
+  id: string;
+  name: string;
+  slug: string;
+  address: string | null;
+  district: string | null;
+  priceMin: number | null;
+  priceMax: number | null;
+  oneLiner: string | null;
+  parkingLocation: string | null;
+  vibes: string[];
+  purposes: string[];
+  coverImage: string | null;
+  lat: number;
+  lng: number;
+  distance_km: number | string;
+  distanceMode?: DistanceMode;
+  distance_mode?: DistanceMode;
+  straight_distance_km?: number | string;
+  duration_min?: number;
+}
 
 function priceRangeToFilter(priceRange: string): object {
   switch (priceRange) {
@@ -19,7 +44,10 @@ function priceRangeToFilter(priceRange: string): object {
 
 @Injectable()
 export class CafesService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private routeDistance: RouteDistanceService,
+  ) {}
 
   async findAll(filter: CafeFilterDto) {
     const { district, search, priceRange, vibes, purposes, page = 1, limit = 12 } = filter;
@@ -54,6 +82,7 @@ export class CafesService {
           priceMin: true,
           priceMax: true,
           oneLiner: true,
+          parkingLocation: true,
           vibes: true,
           purposes: true,
           isFeatured: true,
@@ -86,16 +115,24 @@ export class CafesService {
     return cafe;
   }
 
-  async findNearby(lat: number, lng: number, radiusKm: number = 2) {
+  async findNearby(
+    lat: number,
+    lng: number,
+    radiusKm: number = 2,
+    distanceMode: DistanceMode = 'straight',
+  ) {
     const radiusMeters = radiusKm * 1000;
 
-    const result = await this.prisma.$queryRaw<any[]>`
+    const result = await this.prisma.$queryRaw<NearbyCafeRow[]>`
       SELECT
         c.id, c.name, c.slug, c.address, c.district,
         c.price_min AS "priceMin", c.price_max AS "priceMax",
         c.one_liner AS "oneLiner",
+        c.parking_location AS "parkingLocation",
         c.vibes, c.purposes,
         c.cover_image AS "coverImage",
+        ST_Y(c.location::geometry) AS lat,
+        ST_X(c.location::geometry) AS lng,
         ROUND(
           (ST_Distance(
             c.location,
@@ -116,7 +153,41 @@ export class CafesService {
       LIMIT 20
     `;
 
-    return result;
+    const straightResult = result.map((cafe) => ({
+      ...cafe,
+      distanceMode: 'straight' as const,
+      distance_mode: 'straight' as const,
+    }));
+
+    if (distanceMode !== 'route') return straightResult;
+
+    const routes = await this.routeDistance.getDrivingDistances(
+      { lat, lng },
+      straightResult.map((cafe) => ({
+        id: cafe.id,
+        lat: Number(cafe.lat),
+        lng: Number(cafe.lng),
+      })),
+    );
+
+    if (!routes?.length) return straightResult;
+
+    const routeById = new Map(routes.map((route) => [route.id, route]));
+    return straightResult
+      .map((cafe) => {
+        const route = routeById.get(cafe.id);
+        if (!route) return cafe;
+
+        return {
+          ...cafe,
+          straight_distance_km: cafe.distance_km,
+          distance_km: route.distanceKm,
+          duration_min: route.durationMin,
+          distanceMode: 'route' as const,
+          distance_mode: 'route' as const,
+        };
+      })
+      .sort((a, b) => Number(a.distance_km) - Number(b.distance_km));
   }
 
   async getDistricts() {
@@ -144,6 +215,7 @@ export class CafesService {
         name: true,
         slug: true,
         oneLiner: true,
+        parkingLocation: true,
         vibes: true,
         purposes: true,
         coverImage: true,
