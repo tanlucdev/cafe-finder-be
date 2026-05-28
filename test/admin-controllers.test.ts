@@ -2,12 +2,14 @@ import 'reflect-metadata';
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { PATH_METADATA } from '@nestjs/common/constants';
+import { AdminBlogsController } from '../src/admin/blogs/admin-blogs.controller';
 import { AdminCafesController } from '../src/admin/cafes/admin-cafes.controller';
 import { AdminStatsController } from '../src/admin/stats/admin-stats.controller';
 import { AdminSubmissionsController } from '../src/admin/submissions/admin-submissions.controller';
 import { AdminUsersController } from '../src/admin/users/admin-users.controller';
 
 test('admin controllers expose admin route boundaries', () => {
+  assert.equal(Reflect.getMetadata(PATH_METADATA, AdminBlogsController), 'admin/blogs');
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminCafesController), 'admin/cafes');
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminSubmissionsController), 'admin/submissions');
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminUsersController), 'admin/users');
@@ -58,6 +60,39 @@ test('AdminCafesController delegates cafe actions to service', async () => {
     ['upload', 'cafe-1', 'image.webp', true],
     ['deleteImage', 'cafe-1', 'https://cdn.test/image.webp'],
     ['reorderImages', 'cafe-1', ['https://cdn.test/b.webp', 'https://cdn.test/a.webp']],
+  ]);
+});
+
+test('AdminBlogsController delegates blog actions to service', async () => {
+  const calls: any[] = [];
+  const controller = new AdminBlogsController({
+    listPosts: async (filter: any) => calls.push(['list', filter]),
+    getPost: async (id: string) => calls.push(['get', id]),
+    createPost: async (dto: any) => calls.push(['create', dto]),
+    updatePost: async (id: string, dto: any) => calls.push(['update', id, dto]),
+    deletePost: async (id: string) => calls.push(['delete', id]),
+    togglePublish: async (id: string) => calls.push(['publish', id]),
+    toggleFeature: async (id: string, order?: number) => calls.push(['feature', id, order]),
+  } as any);
+
+  await controller.listPosts({ search: 'morning' });
+  await controller.getPost('post-1');
+  await controller.createPost({ titleVi: 'Bài viết', excerptVi: 'Mô tả', categoryVi: 'Blog' });
+  await controller.updatePost('post-1', { titleVi: 'Bài viết mới' });
+  await controller.replacePost('post-1', { titleVi: 'Bài viết mới hơn' });
+  await controller.deletePost('post-1');
+  await controller.togglePublish('post-1');
+  await controller.toggleFeature('post-1', { featuredOrder: 2 });
+
+  assert.deepEqual(calls, [
+    ['list', { search: 'morning' }],
+    ['get', 'post-1'],
+    ['create', { titleVi: 'Bài viết', excerptVi: 'Mô tả', categoryVi: 'Blog' }],
+    ['update', 'post-1', { titleVi: 'Bài viết mới' }],
+    ['update', 'post-1', { titleVi: 'Bài viết mới hơn' }],
+    ['delete', 'post-1'],
+    ['publish', 'post-1'],
+    ['feature', 'post-1', 2],
   ]);
 });
 

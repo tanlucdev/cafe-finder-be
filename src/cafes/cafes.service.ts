@@ -42,6 +42,28 @@ function priceRangeToFilter(priceRange: string): object {
   }
 }
 
+function cafeOrderBy(sort: CafeFilterDto['sort']): any[] {
+  if (sort === 'rating') {
+    return [
+      { rating: { sort: 'desc', nulls: 'last' } },
+      { isFeatured: 'desc' },
+      { featuredOrder: { sort: 'asc', nulls: 'last' } },
+      { createdAt: 'desc' },
+    ];
+  }
+
+  if (sort === 'newest') {
+    return [{ createdAt: 'desc' }];
+  }
+
+  return [
+    { isFeatured: 'desc' },
+    { featuredOrder: { sort: 'asc', nulls: 'last' } },
+    { savedCafes: { _count: 'desc' } },
+    { createdAt: 'desc' },
+  ];
+}
+
 @Injectable()
 export class CafesService {
   constructor(
@@ -50,7 +72,7 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { district, search, priceRange, vibes, purposes, page = 1, limit = 12 } = filter;
+    const { district, search, priceRange, vibes, purposes, page = 1, limit = 12, sort } = filter;
 
     const where: any = {
       isPublished: true,
@@ -67,12 +89,12 @@ export class CafesService {
       }),
     };
 
-    const [data, total] = await Promise.all([
+    const [cafes, total] = await Promise.all([
       this.prisma.cafe.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: [{ isFeatured: 'desc' }, { createdAt: 'desc' }],
+        orderBy: cafeOrderBy(sort),
         select: {
           id: true,
           name: true,
@@ -85,12 +107,22 @@ export class CafesService {
           parkingLocation: true,
           vibes: true,
           purposes: true,
+          rating: true,
           isFeatured: true,
+          featuredOrder: true,
           coverImage: true,
+          createdAt: true,
+          updatedAt: true,
+          _count: { select: { savedCafes: true } },
         },
       }),
       this.prisma.cafe.count({ where }),
     ]);
+
+    const data = cafes.map(({ _count, ...cafe }) => ({
+      ...cafe,
+      savedCount: _count.savedCafes,
+    }));
 
     return {
       data,

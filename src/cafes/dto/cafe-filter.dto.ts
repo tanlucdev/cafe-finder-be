@@ -1,8 +1,13 @@
-import { IsOptional, IsString, IsArray, IsInt, Min, Max } from 'class-validator';
+import { IsOptional, IsString, IsArray, IsInt, Min, Max, IsIn } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CafeFilterDto {
+  @ApiPropertyOptional({ enum: ['popular', 'rating', 'newest'], default: 'popular' })
+  @IsOptional()
+  @IsIn(['popular', 'rating', 'newest'])
+  sort?: 'popular' | 'rating' | 'newest';
+
   @ApiPropertyOptional({ example: 'District 1' })
   @IsOptional()
   @IsString()

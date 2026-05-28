@@ -14,6 +14,17 @@ const getHostname = (origin: string) => {
   }
 };
 
+const isLocalOrigin = (origin: string) => {
+  try {
+    const { hostname, protocol } = new URL(origin);
+    return (
+      ['http:', 'https:'].includes(protocol) && ['localhost', '127.0.0.1', '::1'].includes(hostname)
+    );
+  } catch {
+    return false;
+  }
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
@@ -36,6 +47,7 @@ async function bootstrap() {
       if (
         !requestOrigin ||
         allowed.includes(requestOrigin) ||
+        isLocalOrigin(requestOrigin) ||
         /\.vercel\.app$/.test(requestOrigin) ||
         requestHostname === 'cafemaps.net' ||
         requestHostname.endsWith('.cafemaps.net')

@@ -36,37 +36,38 @@ model PasswordResetToken {
 }
 
 model Cafe {
-  id               String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  name             String
-  slug             String                    @unique
-  address          String?
-  district         String?
-  district_legacy  String?
-  location         Unsupported("geography")?
-  googlePlaceId    String?                   @map("google_place_id")
-  googleMapsUrl    String?                   @map("google_maps_url")
-  openingTime      DateTime?                 @map("opening_time") @db.Time(6)
-  closingTime      DateTime?                 @map("closing_time") @db.Time(6)
-  priceMin         Int?                      @map("price_min")
-  priceMax         Int?                      @map("price_max")
-  oneLiner         String?                   @map("one_liner")
-  description      String?
-  signatureDrink   String?                   @map("signature_drink")
-  vibes            String[]
-  purposes         String[]
-  amenities        String[]
-  parkingLocation  String?                   @map("parking_location")
-  images           String[]
-  imageOrientations String[]                 @default([]) @map("image_orientations")
-  coverImage       String?                   @map("cover_image")
-  instagramUrl     String?                   @map("instagram_url")
-  isFeatured       Boolean?                  @default(false) @map("is_featured")
-  featuredOrder    Int?                      @map("featured_order")
-  search_vector    Unsupported("tsvector")?
-  isPublished      Boolean                   @default(true) @map("is_published")
-  createdAt        DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
-  updatedAt        DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-  savedCafes       SavedCafe[]
+  id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name              String
+  slug              String                    @unique
+  address           String?
+  district          String?
+  district_legacy   String?
+  location          Unsupported("geography")?
+  googlePlaceId     String?                   @map("google_place_id")
+  googleMapsUrl     String?                   @map("google_maps_url")
+  openingTime       DateTime?                 @map("opening_time") @db.Time(6)
+  closingTime       DateTime?                 @map("closing_time") @db.Time(6)
+  priceMin          Int?                      @map("price_min")
+  priceMax          Int?                      @map("price_max")
+  oneLiner          String?                   @map("one_liner")
+  description       String?
+  signatureDrink    String?                   @map("signature_drink")
+  rating            Decimal?                  @db.Decimal(3, 2)
+  vibes             String[]
+  purposes          String[]
+  amenities         String[]
+  parkingLocation   String?                   @map("parking_location")
+  images            String[]
+  imageOrientations String[]                  @default([]) @map("image_orientations")
+  coverImage        String?                   @map("cover_image")
+  instagramUrl      String?                   @map("instagram_url")
+  isFeatured        Boolean?                  @default(false) @map("is_featured")
+  featuredOrder     Int?                      @map("featured_order")
+  search_vector     Unsupported("tsvector")?
+  isPublished       Boolean                   @default(true) @map("is_published")
+  createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  savedCafes        SavedCafe[]
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([district], map: "idx_cafes_district")
@@ -108,6 +109,48 @@ model CafeSubmission {
   submittedBy   User?            @relation(fields: [submittedById], references: [id])
 
   @@map("cafe_submissions")
+}
+
+model BlogPost {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  slug           String    @unique
+  heroImage      String?   @map("hero_image")
+  accent         String    @default("amber")
+  tags           String[]  @default([])
+  titleVi        String    @map("title_vi")
+  titleEn        String?   @map("title_en")
+  excerptVi      String    @map("excerpt_vi")
+  excerptEn      String?   @map("excerpt_en")
+  categoryVi     String    @map("category_vi")
+  categoryEn     String?   @map("category_en")
+  readTimeVi     String?   @map("read_time_vi")
+  readTimeEn     String?   @map("read_time_en")
+  author         String    @default("Cafe Maps Editorial")
+  moodVi         String?   @map("mood_vi")
+  moodEn         String?   @map("mood_en")
+  locationVi     String?   @map("location_vi")
+  locationEn     String?   @map("location_en")
+  heroImageAltVi String?   @map("hero_image_alt_vi")
+  heroImageAltEn String?   @map("hero_image_alt_en")
+  introVi        String?   @map("intro_vi")
+  introEn        String?   @map("intro_en")
+  pullQuoteVi    String?   @map("pull_quote_vi")
+  pullQuoteEn    String?   @map("pull_quote_en")
+  sectionsVi     Json      @default("[]") @map("sections_vi")
+  sectionsEn     Json      @default("[]") @map("sections_en")
+  checklistVi    String[]  @default([]) @map("checklist_vi")
+  checklistEn    String[]  @default([]) @map("checklist_en")
+  isFeatured     Boolean   @default(false) @map("is_featured")
+  featuredOrder  Int?      @map("featured_order")
+  isPublished    Boolean   @default(false) @map("is_published")
+  publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
+  createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  @@index([isPublished, publishedAt], map: "idx_blog_posts_published")
+  @@index([isFeatured, featuredOrder], map: "idx_blog_posts_featured")
+  @@index([tags], map: "idx_blog_posts_tags", type: Gin)
+  @@map("blog_posts")
 }
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
