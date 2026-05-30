@@ -1,4 +1,4 @@
-import { IsOptional, IsString, IsArray, IsInt, Min, Max, IsIn } from 'class-validator';
+import { IsOptional, IsString, IsArray, IsInt, Min, Max, IsIn, IsBoolean } from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -30,6 +30,12 @@ export class CafeFilterDto {
   @IsOptional()
   @IsString()
   priceRange?: string;
+
+  @ApiPropertyOptional({ default: false, description: 'Only return cafes open now' })
+  @IsOptional()
+  @Transform(({ value }) => value === true || value === 'true')
+  @IsBoolean()
+  openNow?: boolean;
 
   @ApiPropertyOptional({ example: 'quiet,vintage', description: 'Comma-separated vibes' })
   @IsOptional()

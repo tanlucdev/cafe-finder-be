@@ -15,6 +15,8 @@ interface NearbyCafeRow {
   addressEn: string | null;
   district: string | null;
   districtEn: string | null;
+  openingTime: Date | string | null;
+  closingTime: Date | string | null;
   priceMin: number | null;
   priceMax: number | null;
   oneLiner: string | null;
@@ -74,6 +76,37 @@ function cafeOrderBy(sort: CafeFilterDto['sort']): any[] {
   ];
 }
 
+function getVietnamTimeAsDate(now = new Date()) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(now);
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
+  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
+  const date = new Date(0);
+  date.setUTCHours(hour, minute, 0, 0);
+  return date;
+}
+
+function openNowWhere(openingTimeField: any, now = getVietnamTimeAsDate()) {
+  return {
+    openingTime: { not: null },
+    closingTime: { not: null },
+    OR: [
+      { closingTime: { equals: openingTimeField } },
+      { AND: [{ openingTime: { lte: now } }, { closingTime: { gt: now } }] },
+      {
+        AND: [
+          { closingTime: { lte: openingTimeField } },
+          { OR: [{ openingTime: { lte: now } }, { closingTime: { gt: now } }] },
+        ],
+      },
+    ],
+  };
+}
+
 @Injectable()
 export class CafesService {
   constructor(
@@ -92,6 +125,7 @@ export class CafesService {
       page = 1,
       limit = 12,
       sort,
+      openNow,
     } = filter;
 
     const and: any[] = [];
@@ -122,6 +156,7 @@ export class CafesService {
     const where: any = {
       isPublished: true,
       ...(priceRange && priceRangeToFilter(priceRange)),
+      ...(openNow && openNowWhere(this.prisma.cafe.fields.openingTime)),
       ...(and.length && { AND: and }),
     };
 
@@ -140,6 +175,8 @@ export class CafesService {
           addressEn: true,
           district: true,
           districtEn: true,
+          openingTime: true,
+          closingTime: true,
           priceMin: true,
           priceMax: true,
           oneLiner: true,
@@ -206,6 +243,7 @@ export class CafesService {
         c.id, c.name, c.name_en AS "nameEn", c.slug,
         c.address, c.address_en AS "addressEn",
         c.district, c.district_en AS "districtEn",
+        c.opening_time AS "openingTime", c.closing_time AS "closingTime",
         c.price_min AS "priceMin", c.price_max AS "priceMax",
         c.one_liner AS "oneLiner", c.one_liner_en AS "oneLinerEn",
         c.parking_location AS "parkingLocation",
@@ -320,6 +358,8 @@ export class CafesService {
         amenities: true,
         amenitiesEn: true,
         coverImage: true,
+        openingTime: true,
+        closingTime: true,
         isFeatured: true,
         district: true,
         districtEn: true,
