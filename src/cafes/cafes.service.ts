@@ -2,21 +2,31 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 import { RouteDistanceService } from './route-distance.service';
+import { serializeLocalizedCafe } from './cafe.mapper';
 
 type DistanceMode = 'straight' | 'route';
 
 interface NearbyCafeRow {
   id: string;
   name: string;
+  nameEn: string | null;
   slug: string;
   address: string | null;
+  addressEn: string | null;
   district: string | null;
+  districtEn: string | null;
   priceMin: number | null;
   priceMax: number | null;
   oneLiner: string | null;
+  oneLinerEn: string | null;
   parkingLocation: string | null;
+  parkingLocationEn: string | null;
   vibes: string[];
+  vibesEn: string[];
   purposes: string[];
+  purposesEn: string[];
+  amenities: string[];
+  amenitiesEn: string[];
   coverImage: string | null;
   lat: number;
   lng: number;
@@ -72,21 +82,47 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { district, search, priceRange, vibes, purposes, page = 1, limit = 12, sort } = filter;
+    const {
+      locale,
+      district,
+      search,
+      priceRange,
+      vibes,
+      purposes,
+      page = 1,
+      limit = 12,
+      sort,
+    } = filter;
+
+    const and: any[] = [];
+    if (district) {
+      and.push({ OR: [{ district }, { districtEn: district }] });
+    }
+    if (search) {
+      and.push({
+        OR: [
+          { name: { contains: search, mode: 'insensitive' } },
+          { nameEn: { contains: search, mode: 'insensitive' } },
+          { address: { contains: search, mode: 'insensitive' } },
+          { addressEn: { contains: search, mode: 'insensitive' } },
+          { oneLiner: { contains: search, mode: 'insensitive' } },
+          { oneLinerEn: { contains: search, mode: 'insensitive' } },
+        ],
+      });
+    }
+    if (vibes?.length) {
+      and.push({ OR: [{ vibes: { hasSome: vibes } }, { vibesEn: { hasSome: vibes } }] });
+    }
+    if (purposes?.length) {
+      and.push({
+        OR: [{ purposes: { hasSome: purposes } }, { purposesEn: { hasSome: purposes } }],
+      });
+    }
 
     const where: any = {
       isPublished: true,
-      ...(district && { district }),
       ...(priceRange && priceRangeToFilter(priceRange)),
-      ...(vibes?.length && { vibes: { hasSome: vibes } }),
-      ...(purposes?.length && { purposes: { hasSome: purposes } }),
-      ...(search && {
-        OR: [
-          { name: { contains: search, mode: 'insensitive' } },
-          { address: { contains: search, mode: 'insensitive' } },
-          { oneLiner: { contains: search, mode: 'insensitive' } },
-        ],
-      }),
+      ...(and.length && { AND: and }),
     };
 
     const [cafes, total] = await Promise.all([
@@ -98,15 +134,24 @@ export class CafesService {
         select: {
           id: true,
           name: true,
+          nameEn: true,
           slug: true,
           address: true,
+          addressEn: true,
           district: true,
+          districtEn: true,
           priceMin: true,
           priceMax: true,
           oneLiner: true,
+          oneLinerEn: true,
           parkingLocation: true,
+          parkingLocationEn: true,
           vibes: true,
+          vibesEn: true,
           purposes: true,
+          purposesEn: true,
+          amenities: true,
+          amenitiesEn: true,
           rating: true,
           isFeatured: true,
           featuredOrder: true,
@@ -120,7 +165,7 @@ export class CafesService {
     ]);
 
     const data = cafes.map(({ _count, ...cafe }) => ({
-      ...cafe,
+      ...serializeLocalizedCafe(cafe, locale),
       savedCount: _count.savedCafes,
     }));
 
@@ -135,7 +180,7 @@ export class CafesService {
     };
   }
 
-  async findBySlug(slug: string) {
+  async findBySlug(slug: string, locale?: string) {
     const cafe = await this.prisma.cafe.findUnique({
       where: { slug, isPublished: true },
     });
@@ -144,7 +189,7 @@ export class CafesService {
       throw new NotFoundException(`Cafe not found with slug: ${slug}`);
     }
 
-    return cafe;
+    return serializeLocalizedCafe(cafe, locale);
   }
 
   async findNearby(
@@ -152,16 +197,22 @@ export class CafesService {
     lng: number,
     radiusKm: number = 2,
     distanceMode: DistanceMode = 'straight',
+    locale?: string,
   ) {
     const radiusMeters = radiusKm * 1000;
 
     const result = await this.prisma.$queryRaw<NearbyCafeRow[]>`
       SELECT
-        c.id, c.name, c.slug, c.address, c.district,
+        c.id, c.name, c.name_en AS "nameEn", c.slug,
+        c.address, c.address_en AS "addressEn",
+        c.district, c.district_en AS "districtEn",
         c.price_min AS "priceMin", c.price_max AS "priceMax",
-        c.one_liner AS "oneLiner",
+        c.one_liner AS "oneLiner", c.one_liner_en AS "oneLinerEn",
         c.parking_location AS "parkingLocation",
-        c.vibes, c.purposes,
+        c.parking_location_en AS "parkingLocationEn",
+        c.vibes, c.vibes_en AS "vibesEn",
+        c.purposes, c.purposes_en AS "purposesEn",
+        c.amenities, c.amenities_en AS "amenitiesEn",
         c.cover_image AS "coverImage",
         ST_Y(c.location::geometry) AS lat,
         ST_X(c.location::geometry) AS lng,
@@ -186,7 +237,7 @@ export class CafesService {
     `;
 
     const straightResult = result.map((cafe) => ({
-      ...cafe,
+      ...serializeLocalizedCafe(cafe, locale),
       distanceMode: 'straight' as const,
       distance_mode: 'straight' as const,
     }));
@@ -222,38 +273,59 @@ export class CafesService {
       .sort((a, b) => Number(a.distance_km) - Number(b.distance_km));
   }
 
-  async getDistricts() {
+  async getDistricts(locale?: string) {
     const result = await this.prisma.cafe.findMany({
       where: { isPublished: true, district: { not: null } },
-      select: { district: true },
+      select: { district: true, districtEn: true },
       distinct: ['district'],
       orderBy: { district: 'asc' },
     });
 
-    return result.map((r) => r.district).filter(Boolean);
+    return result
+      .map((district) => serializeLocalizedCafe(district, locale).district)
+      .filter(Boolean);
   }
 
-  async quizMatch(vibes: string[], purposes: string[]) {
-    return this.prisma.cafe.findMany({
+  async quizMatch(vibes: string[], purposes: string[], locale?: string) {
+    const and: any[] = [];
+    if (vibes?.length) {
+      and.push({ OR: [{ vibes: { hasSome: vibes } }, { vibesEn: { hasSome: vibes } }] });
+    }
+    if (purposes?.length) {
+      and.push({
+        OR: [{ purposes: { hasSome: purposes } }, { purposesEn: { hasSome: purposes } }],
+      });
+    }
+
+    const cafes = await this.prisma.cafe.findMany({
       where: {
         isPublished: true,
-        ...(vibes?.length && { vibes: { hasSome: vibes } }),
-        ...(purposes?.length && { purposes: { hasSome: purposes } }),
+        ...(and.length && { AND: and }),
       },
       take: 10,
       orderBy: [{ isFeatured: 'desc' }, { featuredOrder: 'asc' }],
       select: {
         id: true,
         name: true,
+        nameEn: true,
         slug: true,
         oneLiner: true,
+        oneLinerEn: true,
         parkingLocation: true,
+        parkingLocationEn: true,
         vibes: true,
+        vibesEn: true,
         purposes: true,
+        purposesEn: true,
+        amenities: true,
+        amenitiesEn: true,
         coverImage: true,
         isFeatured: true,
         district: true,
+        districtEn: true,
       },
     });
+
+    return cafes.map((cafe) => serializeLocalizedCafe(cafe, locale));
   }
 }

@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Delete, Param, Body, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Delete, Param, Body, UseGuards, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SavedService } from './saved.service';
 import { SaveCafeDto } from './dto/save-cafe.dto';
@@ -14,8 +14,8 @@ export class SavedController {
 
   @Get()
   @ApiOperation({ summary: 'Get saved cafes' })
-  getSaved(@CurrentUser() user: any) {
-    return this.savedService.getSaved(user.id);
+  getSaved(@CurrentUser() user: any, @Query('locale') locale?: string) {
+    return this.savedService.getSaved(user.id, locale);
   }
 
   @Get('collections')

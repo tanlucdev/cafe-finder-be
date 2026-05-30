@@ -5,6 +5,8 @@ import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import compression = require('compression');
 
+type ListenError = NodeJS.ErrnoException & { port?: number | string };
+
 const normalizeOrigin = (origin?: string) => origin?.replace(/\/$/, '');
 const getHostname = (origin: string) => {
   try {
@@ -23,6 +25,16 @@ const isLocalOrigin = (origin: string) => {
   } catch {
     return false;
   }
+};
+
+const getPort = () => {
+  const port = Number(process.env.PORT || 3001);
+
+  if (!Number.isInteger(port) || port <= 0 || port > 65535) {
+    throw new Error(`Invalid PORT: ${process.env.PORT}`);
+  }
+
+  return port;
 };
 
 async function bootstrap() {
@@ -82,9 +94,22 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = process.env.PORT || 3001;
-  await app.listen(port);
+  const port = getPort();
+  const host = process.env.HOST || '0.0.0.0';
+
+  await app.listen(port, host);
   console.log(`🚀 Server: http://localhost:${port}/api`);
   console.log(`📖 Swagger: http://localhost:${port}/docs`);
 }
-bootstrap();
+bootstrap().catch((error: ListenError) => {
+  if (error.code === 'EADDRINUSE') {
+    const port = error.port || process.env.PORT || 3001;
+    console.error(`Port ${port} is already in use.`);
+    console.error(`Find the process: lsof -nP -iTCP:${port} -sTCP:LISTEN`);
+    console.error(`Stop it or start this app with another port: PORT=3002 yarn start:dev`);
+    process.exit(1);
+  }
+
+  console.error(error);
+  process.exit(1);
+});

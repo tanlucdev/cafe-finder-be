@@ -63,11 +63,18 @@ test('listCafes applies admin filters and pagination', async () => {
 
   assert.equal(findManyArgs.skip, 10);
   assert.equal(findManyArgs.take, 10);
-  assert.deepEqual(findManyArgs.where.district, 'District 1');
+  assert.deepEqual(findManyArgs.where.AND[0], {
+    OR: [{ district: 'District 1' }, { districtEn: 'District 1' }],
+  });
   assert.equal(findManyArgs.where.isPublished, false);
   assert.equal(findManyArgs.where.isFeatured, true);
-  assert.equal(findManyArgs.where.OR.length, 3);
+  assert.equal(findManyArgs.where.AND[1].OR.length, 6);
   assert.equal(findManyArgs.select.parkingLocation, true);
+  assert.equal(findManyArgs.select.parkingLocationEn, true);
+  assert.equal(findManyArgs.select.vibesEn, true);
+  assert.equal(findManyArgs.select.purposesEn, true);
+  assert.equal(findManyArgs.select.amenities, true);
+  assert.equal(findManyArgs.select.amenitiesEn, true);
   assert.deepEqual(countArgs, { where: findManyArgs.where });
   assert.deepEqual(result.meta, { total: 25, page: 2, limit: 10, totalPages: 3 });
 });

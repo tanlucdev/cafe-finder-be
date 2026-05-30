@@ -38,9 +38,12 @@ model PasswordResetToken {
 model Cafe {
   id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name              String
+  nameEn            String?                   @map("name_en")
   slug              String                    @unique
   address           String?
+  addressEn         String?                   @map("address_en")
   district          String?
+  districtEn        String?                   @map("district_en")
   district_legacy   String?
   location          Unsupported("geography")?
   googlePlaceId     String?                   @map("google_place_id")
@@ -50,13 +53,20 @@ model Cafe {
   priceMin          Int?                      @map("price_min")
   priceMax          Int?                      @map("price_max")
   oneLiner          String?                   @map("one_liner")
+  oneLinerEn        String?                   @map("one_liner_en")
   description       String?
+  descriptionEn     String?                   @map("description_en")
   signatureDrink    String?                   @map("signature_drink")
+  signatureDrinkEn  String?                   @map("signature_drink_en")
   rating            Decimal?                  @db.Decimal(3, 2)
   vibes             String[]
+  vibesEn           String[]                  @default([]) @map("vibes_en")
   purposes          String[]
+  purposesEn        String[]                  @default([]) @map("purposes_en")
   amenities         String[]
+  amenitiesEn       String[]                  @default([]) @map("amenities_en")
   parkingLocation   String?                   @map("parking_location")
+  parkingLocationEn String?                   @map("parking_location_en")
   images            String[]
   imageOrientations String[]                  @default([]) @map("image_orientations")
   coverImage        String?                   @map("cover_image")
@@ -71,6 +81,7 @@ model Cafe {
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([district], map: "idx_cafes_district")
+  @@index([districtEn], map: "idx_cafes_district_en")
   @@index([district_legacy], map: "idx_cafes_district_leg")
   @@index([isFeatured, featuredOrder], map: "idx_cafes_featured")
   @@index([openingTime, closingTime], map: "idx_cafes_hours")

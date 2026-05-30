@@ -27,17 +27,27 @@ export class AdminCafesService {
   async listCafes(filter: AdminCafeFilterDto) {
     const { district, is_published, is_featured, search, page = 1, limit = 20 } = filter;
 
-    const where: any = {
-      ...(district !== undefined && { district }),
-      ...(is_published !== undefined && { isPublished: is_published }),
-      ...(is_featured !== undefined && { isFeatured: is_featured }),
-      ...(search && {
+    const and: any[] = [];
+    if (district !== undefined) {
+      and.push({ OR: [{ district }, { districtEn: district }] });
+    }
+    if (search) {
+      and.push({
         OR: [
           { name: { contains: search, mode: 'insensitive' } },
+          { nameEn: { contains: search, mode: 'insensitive' } },
           { address: { contains: search, mode: 'insensitive' } },
+          { addressEn: { contains: search, mode: 'insensitive' } },
           { oneLiner: { contains: search, mode: 'insensitive' } },
+          { oneLinerEn: { contains: search, mode: 'insensitive' } },
         ],
-      }),
+      });
+    }
+
+    const where: any = {
+      ...(is_published !== undefined && { isPublished: is_published }),
+      ...(is_featured !== undefined && { isFeatured: is_featured }),
+      ...(and.length && { AND: and }),
     };
 
     const [data, total] = await Promise.all([
@@ -49,15 +59,24 @@ export class AdminCafesService {
         select: {
           id: true,
           name: true,
+          nameEn: true,
           slug: true,
           address: true,
+          addressEn: true,
           district: true,
+          districtEn: true,
           priceMin: true,
           priceMax: true,
           oneLiner: true,
+          oneLinerEn: true,
           parkingLocation: true,
+          parkingLocationEn: true,
           vibes: true,
+          vibesEn: true,
           purposes: true,
+          purposesEn: true,
+          amenities: true,
+          amenitiesEn: true,
           isFeatured: true,
           featuredOrder: true,
           isPublished: true,

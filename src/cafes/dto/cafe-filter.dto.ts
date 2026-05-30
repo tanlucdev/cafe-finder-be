@@ -3,6 +3,11 @@ import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CafeFilterDto {
+  @ApiPropertyOptional({ enum: ['vi', 'en'], default: 'vi' })
+  @IsOptional()
+  @IsIn(['vi', 'en'])
+  locale?: 'vi' | 'en';
+
   @ApiPropertyOptional({ enum: ['popular', 'rating', 'newest'], default: 'popular' })
   @IsOptional()
   @IsIn(['popular', 'rating', 'newest'])

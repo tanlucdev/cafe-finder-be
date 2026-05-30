@@ -69,3 +69,66 @@ test('findAll defaults popular sort to featured and saved cafes', async () => {
     { createdAt: 'desc' },
   ]);
 });
+
+test('findAll localizes cafe fields and searches both languages', async () => {
+  let findManyArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          findManyArgs = args;
+          return [
+            {
+              id: 'cafe-1',
+              name: 'Cà Phê Sáng',
+              nameEn: 'Morning Coffee',
+              address: 'Quận 1',
+              addressEn: 'District 1',
+              oneLiner: 'Yên tĩnh',
+              oneLinerEn: 'Quiet spot',
+              vibes: ['Yên tĩnh'],
+              vibesEn: ['Quiet'],
+              purposes: ['Làm việc'],
+              purposesEn: ['Work'],
+              amenities: ['Ổ cắm'],
+              amenitiesEn: ['Power outlets'],
+              _count: { savedCafes: 2 },
+            },
+          ];
+        },
+        count: async () => 1,
+      },
+    },
+  });
+
+  const result = await service.findAll({
+    locale: 'en',
+    search: 'quiet',
+    vibes: ['Quiet'],
+    purposes: ['Work'],
+  });
+
+  assert.equal(findManyArgs.where.AND[0].OR.length, 6);
+  assert.deepEqual(findManyArgs.where.AND[1], {
+    OR: [{ vibes: { hasSome: ['Quiet'] } }, { vibesEn: { hasSome: ['Quiet'] } }],
+  });
+  assert.deepEqual(findManyArgs.where.AND[2], {
+    OR: [{ purposes: { hasSome: ['Work'] } }, { purposesEn: { hasSome: ['Work'] } }],
+  });
+  assert.equal(findManyArgs.select.vibesEn, true);
+  assert.equal(findManyArgs.select.purposesEn, true);
+  assert.equal(findManyArgs.select.amenities, true);
+  assert.equal(findManyArgs.select.amenitiesEn, true);
+  assert.deepEqual(result.data, [
+    {
+      id: 'cafe-1',
+      name: 'Morning Coffee',
+      address: 'District 1',
+      oneLiner: 'Quiet spot',
+      vibes: ['Quiet'],
+      purposes: ['Work'],
+      amenities: ['Power outlets'],
+      savedCount: 2,
+    },
+  ]);
+});

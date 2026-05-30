@@ -18,6 +18,12 @@ export class CreateCafeDto {
   @MaxLength(200)
   name: string;
 
+  @ApiPropertyOptional({ example: 'Morning Coffee' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(200)
+  nameEn?: string | null;
+
   @ApiPropertyOptional({ description: 'Auto-generated from name if not provided' })
   @IsOptional()
   @IsString()
@@ -30,11 +36,23 @@ export class CreateCafeDto {
   @MaxLength(500)
   address?: string;
 
+  @ApiPropertyOptional({ example: '27 Ngo Duc Ke, Ben Nghe Ward, District 1' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  addressEn?: string | null;
+
   @ApiPropertyOptional({ example: 'District 1' })
   @IsOptional()
   @IsString()
   @MaxLength(100)
   district?: string;
+
+  @ApiPropertyOptional({ example: 'District 1' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(100)
+  districtEn?: string | null;
 
   @ApiPropertyOptional({ example: 10.7761, description: 'Latitude used to set PostGIS location' })
   @IsOptional()
@@ -91,36 +109,73 @@ export class CreateCafeDto {
   @MaxLength(500)
   oneLiner?: string;
 
+  @ApiPropertyOptional({ example: 'A striking industrial space for specialty coffee' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  oneLinerEn?: string | null;
+
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  descriptionEn?: string | null;
 
   @ApiPropertyOptional({ example: 'Cold Brew' })
   @IsOptional()
   @IsString()
   signatureDrink?: string;
 
+  @ApiPropertyOptional({ example: 'Cold Brew' })
+  @IsOptional()
+  @IsString()
+  signatureDrinkEn?: string | null;
+
   @ApiPropertyOptional({ type: [String], example: ['quiet', 'vintage'] })
   @IsOptional()
   @IsArray()
   vibes?: string[];
+
+  @ApiPropertyOptional({ type: [String], example: ['quiet', 'vintage'] })
+  @IsOptional()
+  @IsArray()
+  vibesEn?: string[];
 
   @ApiPropertyOptional({ type: [String], example: ['work', 'study'] })
   @IsOptional()
   @IsArray()
   purposes?: string[];
 
+  @ApiPropertyOptional({ type: [String], example: ['work', 'study'] })
+  @IsOptional()
+  @IsArray()
+  purposesEn?: string[];
+
   @ApiPropertyOptional({ type: [String], example: ['wifi', 'power outlets'] })
   @IsOptional()
   @IsArray()
   amenities?: string[];
+
+  @ApiPropertyOptional({ type: [String], example: ['wifi', 'power outlets'] })
+  @IsOptional()
+  @IsArray()
+  amenitiesEn?: string[];
 
   @ApiPropertyOptional({ example: 'Basement parking available' })
   @IsOptional()
   @IsString()
   @MaxLength(500)
   parkingLocation?: string | null;
+
+  @ApiPropertyOptional({ example: 'Basement parking available' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(500)
+  parkingLocationEn?: string | null;
 
   @ApiPropertyOptional({ type: [String] })
   @IsOptional()

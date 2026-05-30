@@ -1,27 +1,38 @@
 import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SaveCafeDto } from './dto/save-cafe.dto';
+import { serializeLocalizedCafe } from '../cafes/cafe.mapper';
 
 @Injectable()
 export class SavedService {
   constructor(private prisma: PrismaService) {}
 
-  async getSaved(userId: string) {
-    return this.prisma.savedCafe.findMany({
+  async getSaved(userId: string, locale?: string) {
+    const saved = await this.prisma.savedCafe.findMany({
       where: { userId },
       include: {
         cafe: {
           select: {
             id: true,
             name: true,
+            nameEn: true,
             slug: true,
             address: true,
+            addressEn: true,
             district: true,
+            districtEn: true,
             priceMin: true,
             priceMax: true,
             oneLiner: true,
+            oneLinerEn: true,
             parkingLocation: true,
+            parkingLocationEn: true,
             vibes: true,
+            vibesEn: true,
+            purposes: true,
+            purposesEn: true,
+            amenities: true,
+            amenitiesEn: true,
             coverImage: true,
             isFeatured: true,
           },
@@ -29,6 +40,11 @@ export class SavedService {
       },
       orderBy: { createdAt: 'desc' },
     });
+
+    return saved.map((item) => ({
+      ...item,
+      cafe: serializeLocalizedCafe(item.cafe, locale),
+    }));
   }
 
   async save(userId: string, dto: SaveCafeDto) {

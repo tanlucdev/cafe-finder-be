@@ -38,20 +38,22 @@ export class CafesController {
     @Query('lng') lng: number,
     @Query('radius') radius: number = 2,
     @Query('distanceMode') distanceMode: 'straight' | 'route' = 'straight',
+    @Query('locale') locale?: string,
   ) {
     return this.cafesService.findNearby(
       +lat,
       +lng,
       +radius,
       distanceMode === 'route' ? 'route' : 'straight',
+      locale,
     );
   }
 
   @Get('districts')
   @Header('Cache-Control', 'public, max-age=3600, stale-while-revalidate=7200')
   @ApiOperation({ summary: 'List districts that have cafes' })
-  getDistricts() {
-    return this.cafesService.getDistricts();
+  getDistricts(@Query('locale') locale?: string) {
+    return this.cafesService.getDistricts(locale);
   }
 
   @Get('quiz-match')
@@ -59,16 +61,20 @@ export class CafesController {
   @ApiOperation({ summary: 'Recommend cafes by vibe and purpose' })
   @ApiQuery({ name: 'vibes', required: false, example: 'Cozy,Artistic' })
   @ApiQuery({ name: 'purposes', required: false, example: 'Work,Study' })
-  quizMatch(@Query('vibes') vibes: string, @Query('purposes') purposes: string) {
+  quizMatch(
+    @Query('vibes') vibes: string,
+    @Query('purposes') purposes: string,
+    @Query('locale') locale?: string,
+  ) {
     const vibeArr = vibes ? vibes.split(',').filter(Boolean) : [];
     const purposeArr = purposes ? purposes.split(',').filter(Boolean) : [];
-    return this.cafesService.quizMatch(vibeArr, purposeArr);
+    return this.cafesService.quizMatch(vibeArr, purposeArr, locale);
   }
 
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'Get cafe details by slug' })
-  findOne(@Param('slug') slug: string) {
-    return this.cafesService.findBySlug(slug);
+  findOne(@Param('slug') slug: string, @Query('locale') locale?: string) {
+    return this.cafesService.findBySlug(slug, locale);
   }
 }
