@@ -12,6 +12,16 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 
+function parseOptionalBoolean({ obj, key, value }: any) {
+  const raw = obj?.[key] ?? value;
+
+  if (raw === undefined || raw === null || raw === '') return undefined;
+  if (raw === true || raw === 'true' || raw === 1 || raw === '1') return true;
+  if (raw === false || raw === 'false' || raw === 0 || raw === '0') return false;
+
+  return raw;
+}
+
 export class CreateCafeDto {
   @ApiProperty({ example: 'The Workshop Coffee' })
   @IsString()
@@ -192,6 +202,11 @@ export class CreateCafeDto {
   @IsString()
   coverImage?: string;
 
+  @ApiPropertyOptional({ description: 'Dedicated cafe menu image URL' })
+  @IsOptional()
+  @IsString()
+  menuImage?: string | null;
+
   @ApiPropertyOptional({ example: 'https://instagram.com/...' })
   @IsOptional()
   @IsString()
@@ -199,6 +214,7 @@ export class CreateCafeDto {
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
+  @Transform(parseOptionalBoolean)
   @IsBoolean()
   isFeatured?: boolean;
 
@@ -216,6 +232,7 @@ export class CreateCafeDto {
 
   @ApiPropertyOptional({ default: false })
   @IsOptional()
+  @Transform(parseOptionalBoolean)
   @IsBoolean()
   isPublished?: boolean;
 }

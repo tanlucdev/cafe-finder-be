@@ -43,6 +43,9 @@ npx prisma db push       # Sync schema → DB (không tạo migration)
 | `SUPABASE_URL` | Base URL Supabase, **không có** trailing path |
 | `SUPABASE_SERVICE_KEY` | Service role key từ Supabase Settings → API |
 | `SUPABASE_BUCKET` | Tên bucket (default `cafe-images`) |
+| `IMAGE_MAX_OUTPUT_KB` | Trần dung lượng ảnh WebP sau convert (default `2048`) |
+| `IMAGE_WEBP_MAX_QUALITY` | Quality WebP bắt đầu thử (default `92`) |
+| `IMAGE_WEBP_MIN_QUALITY` | Quality WebP thấp nhất được phép thử (default `84`) |
 | `GOOGLE_PLACES_API_KEY` | Optional |
 | `PORT` | Default `3001` |
 | `FRONTEND_URL` | CORS origin (default `http://localhost:3000`) |

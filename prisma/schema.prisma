@@ -70,6 +70,7 @@ model Cafe {
   images            String[]
   imageOrientations String[]                  @default([]) @map("image_orientations")
   coverImage        String?                   @map("cover_image")
+  menuImage         String?                   @map("menu_image")
   instagramUrl      String?                   @map("instagram_url")
   isFeatured        Boolean?                  @default(false) @map("is_featured")
   featuredOrder     Int?                      @map("featured_order")

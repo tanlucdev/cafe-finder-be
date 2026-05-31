@@ -1,7 +1,10 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 import { AdminCafesService } from '../src/admin/cafes/admin-cafes.service';
+import { CreateCafeDto } from '../src/admin/cafes/dto/create-cafe.dto';
 
 function createService(overrides: any = {}) {
   const prisma = {
@@ -23,6 +26,7 @@ function createService(overrides: any = {}) {
   };
   const storage = {
     uploadImage: async () => 'https://cdn.test/cafe.webp',
+    uploadImageFromUrl: async () => 'https://cdn.test/imported.webp',
     deleteImage: async () => undefined,
     ...overrides.storage,
   };
@@ -87,6 +91,18 @@ test('getCafe throws when cafe does not exist', async () => {
   await assert.rejects(() => service.getCafe('missing'), NotFoundException);
 });
 
+test('CreateCafeDto parses CMS boolean strings without forcing featured on', () => {
+  const dto = plainToInstance(
+    CreateCafeDto,
+    { name: 'Cafe mới', isFeatured: 'false', isPublished: 'false' },
+    { enableImplicitConversion: true },
+  );
+
+  assert.deepEqual(validateSync(dto), []);
+  assert.equal(dto.isFeatured, false);
+  assert.equal(dto.isPublished, false);
+});
+
 test('createCafe generates slug, persists parkingLocation, and updates PostGIS location', async () => {
   let createdData: any;
   let rawCalled = false;
@@ -115,6 +131,25 @@ test('createCafe generates slug, persists parkingLocation, and updates PostGIS l
   assert.equal(createdData.parkingLocation, 'Hầm giữ xe dưới tòa nhà');
   assert.equal(result.slug, 'ca-phe-sang');
   assert.equal(rawCalled, true);
+});
+
+test('createCafe clears featured order when cafe is not featured', async () => {
+  let createdData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        create: async ({ data }: any) => {
+          createdData = data;
+          return { id: 'cafe-1', ...data };
+        },
+      },
+    },
+  });
+
+  await service.createCafe({ name: 'Cafe thường', isFeatured: false, featuredOrder: 3 });
+
+  assert.equal(createdData.isFeatured, false);
+  assert.equal(createdData.featuredOrder, null);
 });
 
 test('updateCafe regenerates slug from name unless slug is provided and updates parkingLocation', async () => {
@@ -199,6 +234,189 @@ test('uploadCafeImage appends image and sets cover image when empty', async () =
   assert.deepEqual(updateData.images, ['https://cdn.test/old.webp', 'https://cdn.test/new.webp']);
   assert.deepEqual(updateData.imageOrientations, ['landscape', 'unknown']);
   assert.equal(result.coverImage, 'https://cdn.test/new.webp');
+});
+
+test('uploadCafeMenuImage stores menu separately from gallery images', async () => {
+  let uploadFolder = '';
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return { id: 'cafe-1', ...data };
+        },
+      },
+    },
+    storage: {
+      uploadImage: async (_file: any, folder: string) => {
+        uploadFolder = folder;
+        return 'https://cdn.test/menu.webp';
+      },
+    },
+  });
+
+  const result = await service.uploadCafeMenuImage('cafe-1', { originalname: 'menu.webp' } as any);
+
+  assert.equal(uploadFolder, 'cafes/cafe-1/menu');
+  assert.deepEqual(updateData, { menuImage: 'https://cdn.test/menu.webp' });
+  assert.deepEqual(result, {
+    url: 'https://cdn.test/menu.webp',
+    menuImage: 'https://cdn.test/menu.webp',
+  });
+});
+
+test('importCafeImagesFromUrls appends imported image and sets cover image when empty', async () => {
+  let importedFolder = '';
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: ['https://cdn.test/old.webp'],
+          imageOrientations: ['landscape'],
+          coverImage: null,
+        }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return data;
+        },
+      },
+    },
+    storage: {
+      uploadImageFromUrl: async (_url: string, folder: string) => {
+        importedFolder = folder;
+        return 'https://cdn.test/imported.webp';
+      },
+    },
+  });
+
+  const result = await service.importCafeImagesFromUrls('cafe-1', ['https://source.test/a.jpg']);
+
+  assert.equal(importedFolder, 'cafes/cafe-1');
+  assert.deepEqual(result.imported, ['https://cdn.test/imported.webp']);
+  assert.deepEqual(result.failed, []);
+  assert.deepEqual(updateData.images, [
+    'https://cdn.test/old.webp',
+    'https://cdn.test/imported.webp',
+  ]);
+  assert.deepEqual(updateData.imageOrientations, ['landscape', 'unknown']);
+  assert.equal(updateData.coverImage, 'https://cdn.test/imported.webp');
+});
+
+test('importCafeImagesFromUrls with cover prepends images and uses first imported as cover', async () => {
+  let index = 0;
+  let updateData: any;
+  const imported = ['https://cdn.test/one.webp', 'https://cdn.test/two.webp'];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: ['https://cdn.test/old.webp'],
+          imageOrientations: ['landscape'],
+          coverImage: 'https://cdn.test/old.webp',
+        }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return data;
+        },
+      },
+    },
+    storage: { uploadImageFromUrl: async () => imported[index++] },
+  });
+
+  await service.importCafeImagesFromUrls(
+    'cafe-1',
+    ['https://source.test/a.jpg', 'https://source.test/b.jpg'],
+    true,
+  );
+
+  assert.deepEqual(updateData.images, [
+    'https://cdn.test/one.webp',
+    'https://cdn.test/two.webp',
+    'https://cdn.test/old.webp',
+  ]);
+  assert.deepEqual(updateData.imageOrientations, ['unknown', 'unknown', 'landscape']);
+  assert.equal(updateData.coverImage, 'https://cdn.test/one.webp');
+});
+
+test('importCafeImagesFromUrls keeps partial success and reports failed URLs', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: [],
+          imageOrientations: [],
+          coverImage: null,
+        }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return data;
+        },
+      },
+    },
+    storage: {
+      uploadImageFromUrl: async (url: string) => {
+        if (url.includes('bad')) throw new Error('Source is not an image');
+        if (url.includes('local')) throw new Error('Private or local image URLs are not allowed');
+        return 'https://cdn.test/ok.webp';
+      },
+    },
+  });
+
+  const result = await service.importCafeImagesFromUrls('cafe-1', [
+    'https://source.test/ok.jpg',
+    'https://source.test/bad.txt',
+    'http://127.0.0.1/local.jpg',
+  ]);
+
+  assert.deepEqual(result.imported, ['https://cdn.test/ok.webp']);
+  assert.deepEqual(result.failed, [
+    { url: 'https://source.test/bad.txt', reason: 'Source is not an image' },
+    { url: 'http://127.0.0.1/local.jpg', reason: 'Private or local image URLs are not allowed' },
+  ]);
+  assert.deepEqual(updateData.images, ['https://cdn.test/ok.webp']);
+});
+
+test('importCafeImagesFromUrls does not import beyond the 12 image limit', async () => {
+  const existingImages = Array.from({ length: 11 }, (_, index) => `https://cdn.test/${index}.webp`);
+  let importCalls = 0;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: existingImages,
+          imageOrientations: existingImages.map(() => 'unknown'),
+          coverImage: existingImages[0],
+        }),
+        update: async ({ data }: any) => data,
+      },
+    },
+    storage: {
+      uploadImageFromUrl: async () => {
+        importCalls += 1;
+        return 'https://cdn.test/new.webp';
+      },
+    },
+  });
+
+  const result = await service.importCafeImagesFromUrls('cafe-1', [
+    'https://source.test/a.jpg',
+    'https://source.test/b.jpg',
+  ]);
+
+  assert.equal(importCalls, 1);
+  assert.deepEqual(result.imported, ['https://cdn.test/new.webp']);
+  assert.deepEqual(result.failed, [
+    { url: 'https://source.test/b.jpg', reason: 'Cafe image gallery already has 12 images' },
+  ]);
+  assert.equal(result.images.length, 12);
 });
 
 test('deleteCafeImage deletes storage object and updates images, orientations, cover', async () => {

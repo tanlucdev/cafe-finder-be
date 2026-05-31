@@ -1,15 +1,20 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'child_process';
+import { lookup } from 'dns/promises';
 import { promises as fsp } from 'fs';
+import { isIP } from 'net';
 import type {} from 'multer';
 import { tmpdir } from 'os';
 import { basename, extname, join } from 'path';
 import sharp = require('sharp');
 import { promisify } from 'util';
 
-const TARGET_BYTES = 800 * 1024;
-const QUALITY_STEPS = [80, 76, 72, 68, 64, 60];
+const DEFAULT_TARGET_KB = 2048;
+const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
+const REMOTE_IMAGE_TIMEOUT_MS = 15_000;
+const DEFAULT_MAX_QUALITY = 92;
+const DEFAULT_MIN_QUALITY = 84;
 const WEBP_OPTIONS = {
   effort: 6,
   smartSubsample: true,
@@ -19,6 +24,26 @@ const SIPS_PATH = '/usr/bin/sips';
 
 const run = promisify(execFile);
 type UploadedFile = Express.Multer.File;
+
+function readNumberConfig(value: unknown, fallback: number) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampQuality(value: number) {
+  return Math.min(100, Math.max(1, Math.round(value)));
+}
+
+function buildQualitySteps(maxQuality: number, minQuality: number) {
+  const max = clampQuality(maxQuality);
+  const min = Math.min(max, clampQuality(minQuality));
+  const steps: number[] = [];
+
+  for (let quality = max; quality >= min; quality -= 2) steps.push(quality);
+
+  if (steps.at(-1) !== min) steps.push(min);
+  return steps;
+}
 
 function isSupportedSupabaseSecret(key: string) {
   return key.startsWith('eyJ') || key.startsWith('sb_secret_');
@@ -32,16 +57,43 @@ function isHeicImage(file: UploadedFile) {
   );
 }
 
+function isPrivateIp(address: string) {
+  if (address === '127.0.0.1' || address === '0.0.0.0' || address === '::1') return true;
+  if (address.startsWith('10.') || address.startsWith('192.168.')) return true;
+
+  const parts = address.split('.').map(Number);
+  if (parts.length === 4 && parts.every((part) => Number.isInteger(part))) {
+    if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;
+    if (parts[0] === 169 && parts[1] === 254) return true;
+  }
+
+  const lower = address.toLowerCase();
+  return lower.startsWith('fc') || lower.startsWith('fd') || lower.startsWith('fe80:');
+}
+
+function extensionFromUrl(url: URL) {
+  const extension = extname(url.pathname).toLowerCase();
+  return extension || '.jpg';
+}
+
 @Injectable()
 export class StorageService {
   private readonly supabaseUrl: string;
   private readonly supabaseKey: string;
   private readonly bucket: string;
+  private readonly targetBytes: number;
+  private readonly qualitySteps: number[];
 
   constructor(private config: ConfigService) {
     this.supabaseUrl = config.get('SUPABASE_URL', '');
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
+    this.targetBytes =
+      readNumberConfig(config.get('IMAGE_MAX_OUTPUT_KB'), DEFAULT_TARGET_KB) * 1024;
+    this.qualitySteps = buildQualitySteps(
+      readNumberConfig(config.get('IMAGE_WEBP_MAX_QUALITY'), DEFAULT_MAX_QUALITY),
+      readNumberConfig(config.get('IMAGE_WEBP_MIN_QUALITY'), DEFAULT_MIN_QUALITY),
+    );
 
     if (this.supabaseKey && !isSupportedSupabaseSecret(this.supabaseKey)) {
       throw new Error(
@@ -98,7 +150,7 @@ export class StorageService {
     try {
       await sharp(file.buffer)
         .rotate()
-        .webp({ ...WEBP_OPTIONS, quality: QUALITY_STEPS[0] })
+        .webp({ ...WEBP_OPTIONS, quality: this.qualitySteps[0] })
         .toBuffer();
       return { buffer: file.buffer };
     } catch {
@@ -111,21 +163,92 @@ export class StorageService {
     const candidates: Buffer[] = [];
 
     try {
-      for (const quality of QUALITY_STEPS) {
+      for (const quality of this.qualitySteps) {
         const candidate = await sharp(buffer)
           .rotate()
           .webp({ ...WEBP_OPTIONS, quality })
           .toBuffer();
 
         candidates.push(candidate);
-        if (candidate.byteLength <= TARGET_BYTES) break;
+        if (candidate.byteLength <= this.targetBytes) break;
       }
 
       return (
-        candidates.find((candidate) => candidate.byteLength <= TARGET_BYTES) ?? candidates.at(-1)
+        candidates.find((candidate) => candidate.byteLength <= this.targetBytes) ??
+        candidates.at(-1)
       );
     } finally {
       await cleanup?.();
+    }
+  }
+
+  private async assertSafeRemoteUrl(imageUrl: string): Promise<URL> {
+    let parsed: URL;
+    try {
+      parsed = new URL(imageUrl);
+    } catch {
+      throw new Error('Invalid URL');
+    }
+
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('Only http/https image URLs are supported');
+    }
+    if (parsed.username || parsed.password) {
+      throw new Error('Image URL must not contain credentials');
+    }
+
+    const addresses = isIP(parsed.hostname)
+      ? [{ address: parsed.hostname }]
+      : await lookup(parsed.hostname, { all: true });
+    if (!addresses.length || addresses.some(({ address }) => isPrivateIp(address))) {
+      throw new Error('Private or local image URLs are not allowed');
+    }
+
+    return parsed;
+  }
+
+  async uploadImageFromUrl(imageUrl: string, folder: string = 'cafes'): Promise<string> {
+    const parsedUrl = await this.assertSafeRemoteUrl(imageUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), REMOTE_IMAGE_TIMEOUT_MS);
+
+    try {
+      const response = await fetch(parsedUrl, {
+        signal: controller.signal,
+        redirect: 'manual',
+        headers: { Accept: 'image/avif,image/webp,image/*,*/*;q=0.8' },
+      });
+
+      if (response.status >= 300 && response.status < 400) {
+        throw new Error('Source image redirects are not supported');
+      }
+      if (!response.ok) throw new Error(`Source returned HTTP ${response.status}`);
+
+      const contentType = response.headers.get('content-type')?.split(';')[0]?.trim() ?? '';
+      if (!contentType.startsWith('image/')) throw new Error('Source is not an image');
+
+      const contentLength = Number(response.headers.get('content-length') ?? 0);
+      if (contentLength > MAX_SOURCE_BYTES) throw new Error('Source image is larger than 25MB');
+
+      const buffer = Buffer.from(await response.arrayBuffer());
+      if (buffer.byteLength > MAX_SOURCE_BYTES) throw new Error('Source image is larger than 25MB');
+
+      return this.uploadImage(
+        {
+          originalname: `remote-image${extensionFromUrl(parsedUrl)}`,
+          mimetype: contentType,
+          buffer,
+        } as UploadedFile,
+        folder,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Source image request timed out'
+          : (error as Error).message;
+      throw new Error(message);
+    } finally {
+      clearTimeout(timeout);
     }
   }
 

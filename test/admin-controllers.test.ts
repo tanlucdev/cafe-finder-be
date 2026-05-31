@@ -28,6 +28,10 @@ test('AdminCafesController delegates cafe actions to service', async () => {
     toggleFeature: async (id: string, order?: number) => calls.push(['feature', id, order]),
     uploadCafeImage: async (id: string, file: any, setCover?: boolean) =>
       calls.push(['upload', id, file.originalname, setCover === true]),
+    uploadCafeMenuImage: async (id: string, file: any) =>
+      calls.push(['uploadMenu', id, file.originalname]),
+    importCafeImagesFromUrls: async (id: string, urls: string[], setCover?: boolean) =>
+      calls.push(['importImages', id, urls, setCover === true]),
     deleteCafeImage: async (id: string, url: string) => calls.push(['deleteImage', id, url]),
     reorderCafeImages: async (id: string, urls: string[]) =>
       calls.push(['reorderImages', id, urls]),
@@ -43,6 +47,8 @@ test('AdminCafesController delegates cafe actions to service', async () => {
   await controller.togglePublish('cafe-1');
   await controller.toggleFeature('cafe-1', { featuredOrder: 1 });
   await controller.uploadImage('cafe-1', 'true', { originalname: 'image.webp' } as any);
+  await controller.uploadMenuImage('cafe-1', { originalname: 'menu.webp' } as any);
+  await controller.importImages('cafe-1', { urls: ['https://source.test/a.jpg'], cover: true });
   await controller.deleteImage('cafe-1', { imageUrl: 'https://cdn.test/image.webp' });
   await controller.reorderImages('cafe-1', {
     imageUrls: ['https://cdn.test/b.webp', 'https://cdn.test/a.webp'],
@@ -58,6 +64,8 @@ test('AdminCafesController delegates cafe actions to service', async () => {
     ['publish', 'cafe-1'],
     ['feature', 'cafe-1', 1],
     ['upload', 'cafe-1', 'image.webp', true],
+    ['uploadMenu', 'cafe-1', 'menu.webp'],
+    ['importImages', 'cafe-1', ['https://source.test/a.jpg'], true],
     ['deleteImage', 'cafe-1', 'https://cdn.test/image.webp'],
     ['reorderImages', 'cafe-1', ['https://cdn.test/b.webp', 'https://cdn.test/a.webp']],
   ]);

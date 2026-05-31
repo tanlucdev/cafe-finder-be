@@ -25,6 +25,7 @@ import { AdminCafesService } from './admin-cafes.service';
 import { AdminCafeFilterDto } from './dto/admin-cafe-filter.dto';
 import { CreateCafeDto } from './dto/create-cafe.dto';
 import { DeleteCafeImageDto } from './dto/delete-cafe-image.dto';
+import { ImportCafeImagesDto } from './dto/import-cafe-images.dto';
 
 import { ReorderCafeImagesDto } from './dto/reorder-cafe-images.dto';
 import { ToggleFeatureDto } from './dto/toggle-feature.dto';
@@ -137,6 +138,34 @@ export class AdminCafesController {
     file: UploadedFile,
   ) {
     return this.adminCafesService.uploadCafeImage(id, file, cover === 'true');
+  }
+
+  @Post(':id/menu')
+  @ApiOperation({ summary: 'Upload dedicated menu image for cafe' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadMenuImage(
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 25 * 1024 * 1024 }),
+          new ImageUploadFileValidator({}),
+        ],
+      }),
+    )
+    file: UploadedFile,
+  ) {
+    return this.adminCafesService.uploadCafeMenuImage(id, file);
+  }
+
+  @Post(':id/images/import')
+  @ApiOperation({ summary: 'Import cafe images from direct image URLs' })
+  importImages(@Param('id') id: string, @Body() dto: ImportCafeImagesDto) {
+    return this.adminCafesService.importCafeImagesFromUrls(id, dto.urls, dto.cover === true);
   }
 
   @Delete(':id/images')

@@ -8,6 +8,7 @@ import { CreateCafeDto } from './dto/create-cafe.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
 
 type UploadedFile = Express.Multer.File;
+const MAX_CAFE_IMAGES = 12;
 
 function parseTimeString(time: string | null | undefined): Date | null {
   if (!time) return null;
@@ -15,6 +16,16 @@ function parseTimeString(time: string | null | undefined): Date | null {
   const d = new Date(0);
   d.setUTCHours(hours, minutes, 0, 0);
   return d;
+}
+
+function normalizeFeaturedFields<
+  T extends { isFeatured?: boolean | null; featuredOrder?: number | null },
+>(data: T) {
+  if (data.isFeatured === false) {
+    data.featuredOrder = null;
+  }
+
+  return data;
 }
 
 @Injectable()
@@ -104,7 +115,7 @@ export class AdminCafesService {
 
     const cafe = await this.prisma.cafe.create({
       data: {
-        ...cafeData,
+        ...normalizeFeaturedFields(cafeData),
         slug,
         ...(openingTime !== undefined && { openingTime: parseTimeString(openingTime) }),
         ...(closingTime !== undefined && { closingTime: parseTimeString(closingTime) }),
@@ -126,7 +137,7 @@ export class AdminCafesService {
     await this.findCafeOrThrow(id);
 
     const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
-    const data: any = { ...rest };
+    const data: any = normalizeFeaturedFields({ ...rest });
 
     if (name) {
       data.name = name;
@@ -198,6 +209,79 @@ export class AdminCafesService {
 
     return {
       url,
+      images: updated.images,
+      imageOrientations: updated.imageOrientations,
+      coverImage: updated.coverImage,
+    };
+  }
+
+  async uploadCafeMenuImage(id: string, file: UploadedFile) {
+    await this.findCafeOrThrow(id);
+    const url = await this.storage.uploadImage(file, `cafes/${id}/menu`);
+
+    const updated = await this.prisma.cafe.update({
+      where: { id },
+      data: { menuImage: url },
+    });
+
+    return { url, menuImage: updated.menuImage };
+  }
+
+  async importCafeImagesFromUrls(id: string, urls: string[], setCover = false) {
+    const cafe = await this.findCafeOrThrow(id);
+    const normalizedUrls = urls.map((url) => url.trim()).filter(Boolean);
+    if (!normalizedUrls.length) {
+      throw new BadRequestException('At least one image URL is required');
+    }
+
+    const availableSlots = Math.max(MAX_CAFE_IMAGES - cafe.images.length, 0);
+    if (availableSlots === 0) {
+      throw new BadRequestException('Cafe image gallery already has 12 images');
+    }
+
+    const urlsToImport = normalizedUrls.slice(0, availableSlots);
+    const failed = normalizedUrls.slice(availableSlots).map((url) => ({
+      url,
+      reason: 'Cafe image gallery already has 12 images',
+    }));
+    const imported: string[] = [];
+
+    for (const url of urlsToImport) {
+      try {
+        imported.push(await this.storage.uploadImageFromUrl(url, `cafes/${id}`));
+      } catch (error) {
+        failed.push({ url, reason: (error as Error).message });
+      }
+    }
+
+    if (!imported.length) {
+      return {
+        imported,
+        failed,
+        images: cafe.images,
+        imageOrientations: cafe.imageOrientations ?? [],
+        coverImage: cafe.coverImage,
+      };
+    }
+
+    const images = setCover ? [...imported, ...cafe.images] : [...cafe.images, ...imported];
+    const importedOrientations = imported.map(() => 'unknown');
+    const imageOrientations = setCover
+      ? [...importedOrientations, ...(cafe.imageOrientations ?? [])]
+      : [...(cafe.imageOrientations ?? []), ...importedOrientations];
+
+    const updated = await this.prisma.cafe.update({
+      where: { id },
+      data: {
+        images,
+        imageOrientations,
+        coverImage: setCover ? imported[0] : (cafe.coverImage ?? imported[0]),
+      },
+    });
+
+    return {
+      imported,
+      failed,
       images: updated.images,
       imageOrientations: updated.imageOrientations,
       coverImage: updated.coverImage,
