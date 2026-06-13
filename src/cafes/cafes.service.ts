@@ -29,6 +29,8 @@ interface NearbyCafeRow {
   purposesEn: string[];
   amenities: string[];
   amenitiesEn: string[];
+  tags: string[];
+  tagsEn: string[];
   coverImage: string | null;
   lat: number;
   lng: number;
@@ -122,6 +124,7 @@ export class CafesService {
       priceRange,
       vibes,
       purposes,
+      tags,
       page = 1,
       limit = 12,
       sort,
@@ -151,6 +154,9 @@ export class CafesService {
       and.push({
         OR: [{ purposes: { hasSome: purposes } }, { purposesEn: { hasSome: purposes } }],
       });
+    }
+    if (tags?.length) {
+      and.push({ OR: [{ tags: { hasSome: tags } }, { tagsEn: { hasSome: tags } }] });
     }
 
     const where: any = {
@@ -189,6 +195,8 @@ export class CafesService {
           purposesEn: true,
           amenities: true,
           amenitiesEn: true,
+          tags: true,
+          tagsEn: true,
           rating: true,
           isFeatured: true,
           featuredOrder: true,
@@ -251,6 +259,7 @@ export class CafesService {
         c.vibes, c.vibes_en AS "vibesEn",
         c.purposes, c.purposes_en AS "purposesEn",
         c.amenities, c.amenities_en AS "amenitiesEn",
+        c.tags, c.tags_en AS "tagsEn",
         c.cover_image AS "coverImage",
         ST_Y(c.location::geometry) AS lat,
         ST_X(c.location::geometry) AS lng,
@@ -324,7 +333,7 @@ export class CafesService {
       .filter(Boolean);
   }
 
-  async quizMatch(vibes: string[], purposes: string[], locale?: string) {
+  async quizMatch(vibes: string[], purposes: string[], locale?: string, tags: string[] = []) {
     const and: any[] = [];
     if (vibes?.length) {
       and.push({ OR: [{ vibes: { hasSome: vibes } }, { vibesEn: { hasSome: vibes } }] });
@@ -333,6 +342,9 @@ export class CafesService {
       and.push({
         OR: [{ purposes: { hasSome: purposes } }, { purposesEn: { hasSome: purposes } }],
       });
+    }
+    if (tags?.length) {
+      and.push({ OR: [{ tags: { hasSome: tags } }, { tagsEn: { hasSome: tags } }] });
     }
 
     const cafes = await this.prisma.cafe.findMany({
@@ -357,6 +369,8 @@ export class CafesService {
         purposesEn: true,
         amenities: true,
         amenitiesEn: true,
+        tags: true,
+        tagsEn: true,
         coverImage: true,
         openingTime: true,
         closingTime: true,

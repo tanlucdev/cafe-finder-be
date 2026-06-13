@@ -61,14 +61,17 @@ export class CafesController {
   @ApiOperation({ summary: 'Recommend cafes by vibe and purpose' })
   @ApiQuery({ name: 'vibes', required: false, example: 'Cozy,Artistic' })
   @ApiQuery({ name: 'purposes', required: false, example: 'Work,Study' })
+  @ApiQuery({ name: 'tags', required: false, example: 'outdoor,smoking' })
   quizMatch(
     @Query('vibes') vibes: string,
     @Query('purposes') purposes: string,
+    @Query('tags') tags: string,
     @Query('locale') locale?: string,
   ) {
     const vibeArr = vibes ? vibes.split(',').filter(Boolean) : [];
     const purposeArr = purposes ? purposes.split(',').filter(Boolean) : [];
-    return this.cafesService.quizMatch(vibeArr, purposeArr, locale);
+    const tagArr = tags ? tags.split(',').filter(Boolean) : [];
+    return this.cafesService.quizMatch(vibeArr, purposeArr, locale, tagArr);
   }
 
   @Get(':slug')

@@ -5,6 +5,8 @@ import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { AdminCafesService } from '../src/admin/cafes/admin-cafes.service';
 import { CreateCafeDto } from '../src/admin/cafes/dto/create-cafe.dto';
+import { ToggleFeatureDto } from '../src/admin/cafes/dto/toggle-feature.dto';
+import { UpdateCafeDto } from '../src/admin/cafes/dto/update-cafe.dto';
 
 function createService(overrides: any = {}) {
   const prisma = {
@@ -79,6 +81,8 @@ test('listCafes applies admin filters and pagination', async () => {
   assert.equal(findManyArgs.select.purposesEn, true);
   assert.equal(findManyArgs.select.amenities, true);
   assert.equal(findManyArgs.select.amenitiesEn, true);
+  assert.equal(findManyArgs.select.tags, true);
+  assert.equal(findManyArgs.select.tagsEn, true);
   assert.deepEqual(countArgs, { where: findManyArgs.where });
   assert.deepEqual(result.meta, { total: 25, page: 2, limit: 10, totalPages: 3 });
 });
@@ -101,6 +105,31 @@ test('CreateCafeDto parses CMS boolean strings without forcing featured on', () 
   assert.deepEqual(validateSync(dto), []);
   assert.equal(dto.isFeatured, false);
   assert.equal(dto.isPublished, false);
+});
+
+test('UpdateCafeDto accepts menuImage with whitelist validation', () => {
+  const dto = plainToInstance(UpdateCafeDto, { menuImage: 'https://cdn.test/menu.webp' });
+
+  assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
+});
+
+test('UpdateCafeDto accepts cafe tags with whitelist validation', () => {
+  const dto = plainToInstance(UpdateCafeDto, {
+    tags: ['ngoài trời', 'view đẹp'],
+    tagsEn: ['outdoor', 'nice view'],
+  });
+
+  assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
+});
+
+test('cafe featuredOrder treats zero as optional', () => {
+  const updateDto = plainToInstance(UpdateCafeDto, { featuredOrder: 0 });
+  const toggleDto = plainToInstance(ToggleFeatureDto, { featuredOrder: '0' });
+
+  assert.deepEqual(validateSync(updateDto), []);
+  assert.deepEqual(validateSync(toggleDto), []);
+  assert.equal(updateDto.featuredOrder, null);
+  assert.equal(toggleDto.featuredOrder, null);
 });
 
 test('createCafe generates slug, persists parkingLocation, and updates PostGIS location', async () => {
@@ -152,6 +181,58 @@ test('createCafe clears featured order when cafe is not featured', async () => {
   assert.equal(createdData.featuredOrder, null);
 });
 
+test('createCafe maps Vietnamese array fields to English arrays when omitted', async () => {
+  let createdData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        create: async ({ data }: any) => {
+          createdData = data;
+          return { id: 'cafe-1', ...data };
+        },
+      },
+    },
+  });
+
+  await service.createCafe({
+    name: 'Cafe vibe',
+    vibes: ['yên tĩnh'],
+    purposes: ['làm việc'],
+    amenities: ['WiFi'],
+    tags: ['ngoài trời'],
+  });
+
+  assert.deepEqual(createdData.vibesEn, ['quiet']);
+  assert.deepEqual(createdData.purposesEn, ['work']);
+  assert.deepEqual(createdData.amenitiesEn, ['WiFi']);
+  assert.deepEqual(createdData.tagsEn, ['outdoor']);
+});
+
+test('updateCafe remaps empty localized arrays from Vietnamese fields', async () => {
+  let updateArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async (args: any) => {
+          updateArgs = args;
+          return { id: 'cafe-1', ...args.data };
+        },
+      },
+    },
+  });
+
+  await service.updateCafe('cafe-1', {
+    tags: ['view đẹp'],
+    tagsEn: [],
+    vibes: ['hiện đại'],
+    vibesEn: [],
+  });
+
+  assert.deepEqual(updateArgs.data.tagsEn, ['nice view']);
+  assert.deepEqual(updateArgs.data.vibesEn, ['modern']);
+});
+
 test('updateCafe regenerates slug from name unless slug is provided and updates parkingLocation', async () => {
   let updateArgs: any;
   const { service } = createService({
@@ -174,6 +255,32 @@ test('updateCafe regenerates slug from name unless slug is provided and updates 
 
   await service.updateCafe('cafe-1', { parkingLocation: 'Gửi xe trước quán' });
   assert.equal(updateArgs.data.parkingLocation, 'Gửi xe trước quán');
+});
+
+test('updateCafe keeps localized arrays in sync for CMS updates', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return { id: 'cafe-1', ...data };
+        },
+      },
+    },
+  });
+
+  await service.updateCafe('cafe-1', { vibes: ['yên tĩnh'] });
+  assert.deepEqual(updateData.vibes, ['yên tĩnh']);
+  assert.deepEqual(updateData.vibesEn, ['quiet']);
+
+  await service.updateCafe('cafe-1', { vibes: ['yên tĩnh'], vibesEn: ['Quiet'] });
+  assert.deepEqual(updateData.vibesEn, ['Quiet']);
+
+  await service.updateCafe('cafe-1', { tags: ['ngoài trời'] });
+  assert.deepEqual(updateData.tags, ['ngoài trời']);
+  assert.deepEqual(updateData.tagsEn, ['outdoor']);
 });
 
 test('togglePublish and toggleFeature update the expected fields', async () => {

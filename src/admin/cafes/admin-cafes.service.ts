@@ -6,6 +6,7 @@ import { StorageService } from '../../storage/storage.service';
 import { AdminCafeFilterDto } from './dto/admin-cafe-filter.dto';
 import { CreateCafeDto } from './dto/create-cafe.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
+import { syncLocalizedArrays } from './localized-arrays';
 
 type UploadedFile = Express.Multer.File;
 const MAX_CAFE_IMAGES = 12;
@@ -66,7 +67,7 @@ export class AdminCafesService {
         where,
         skip: (page - 1) * limit,
         take: limit,
-        orderBy: { createdAt: 'desc' },
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
         select: {
           id: true,
           name: true,
@@ -88,6 +89,8 @@ export class AdminCafesService {
           purposesEn: true,
           amenities: true,
           amenitiesEn: true,
+          tags: true,
+          tagsEn: true,
           isFeatured: true,
           featuredOrder: true,
           isPublished: true,
@@ -115,7 +118,7 @@ export class AdminCafesService {
 
     const cafe = await this.prisma.cafe.create({
       data: {
-        ...normalizeFeaturedFields(cafeData),
+        ...syncLocalizedArrays(normalizeFeaturedFields(cafeData)),
         slug,
         ...(openingTime !== undefined && { openingTime: parseTimeString(openingTime) }),
         ...(closingTime !== undefined && { closingTime: parseTimeString(closingTime) }),
@@ -137,7 +140,7 @@ export class AdminCafesService {
     await this.findCafeOrThrow(id);
 
     const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
-    const data: any = normalizeFeaturedFields({ ...rest });
+    const data: any = syncLocalizedArrays(normalizeFeaturedFields({ ...rest }));
 
     if (name) {
       data.name = name;
@@ -175,7 +178,7 @@ export class AdminCafesService {
     });
   }
 
-  async toggleFeature(id: string, featuredOrder?: number) {
+  async toggleFeature(id: string, featuredOrder?: number | null) {
     const cafe = await this.findCafeOrThrow(id);
     const isFeatured = !cafe.isFeatured;
 

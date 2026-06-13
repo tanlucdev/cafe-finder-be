@@ -65,6 +65,8 @@ model Cafe {
   purposesEn        String[]                  @default([]) @map("purposes_en")
   amenities         String[]
   amenitiesEn       String[]                  @default([]) @map("amenities_en")
+  tags              String[]                  @default([])
+  tagsEn            String[]                  @default([]) @map("tags_en")
   parkingLocation   String?                   @map("parking_location")
   parkingLocationEn String?                   @map("parking_location_en")
   images            String[]
@@ -81,6 +83,8 @@ model Cafe {
   savedCafes        SavedCafe[]
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
+  @@index([tags], map: "idx_cafes_tags", type: Gin)
+  @@index([tagsEn], map: "idx_cafes_tags_en", type: Gin)
   @@index([district], map: "idx_cafes_district")
   @@index([districtEn], map: "idx_cafes_district_en")
   @@index([district_legacy], map: "idx_cafes_district_leg")

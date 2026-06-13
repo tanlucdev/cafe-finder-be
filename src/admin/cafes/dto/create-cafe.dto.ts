@@ -175,6 +175,18 @@ export class CreateCafeDto {
   @IsArray()
   amenitiesEn?: string[];
 
+  @ApiPropertyOptional({ type: [String], example: ['outdoor', 'smoking'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tags?: string[];
+
+  @ApiPropertyOptional({ type: [String], example: ['outdoor', 'smoking'] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  tagsEn?: string[];
+
   @ApiPropertyOptional({ example: 'Basement parking available' })
   @IsOptional()
   @IsString()
@@ -221,7 +233,9 @@ export class CreateCafeDto {
   @ApiPropertyOptional()
   @IsOptional()
   @Transform(({ value }) => {
-    if (value === null || value === '' || value === undefined) return null;
+    if (value === null || value === '' || value === undefined || value === 0 || value === '0') {
+      return null;
+    }
     const n = Number(value);
     return isNaN(n) ? null : n;
   })

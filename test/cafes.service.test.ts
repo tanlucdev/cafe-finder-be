@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { CafesService } from '../src/cafes/cafes.service';
+import { serializeLocalizedCafe } from '../src/cafes/cafe.mapper';
 
 function createService(overrides: any = {}) {
   const prisma = {
@@ -21,6 +22,21 @@ function createService(overrides: any = {}) {
     routeDistance,
   };
 }
+
+test('serializeLocalizedCafe dedupes localized list values case-insensitively', () => {
+  const cafe = serializeLocalizedCafe(
+    {
+      amenities: ['wifi', 'ổ cắm', 'điều hoà', 'WiFi', 'Chỗ đậu xe', 'Ổ cắm'],
+      amenitiesEn: [],
+      tags: ['Ngoài trời', 'ngoài trời'],
+      tagsEn: [],
+    },
+    'vi',
+  );
+
+  assert.deepEqual(cafe.amenities, ['wifi', 'ổ cắm', 'điều hoà', 'Chỗ đậu xe']);
+  assert.deepEqual(cafe.tags, ['Ngoài trời']);
+});
 
 test('findAll passes rating sort to Prisma before pagination', async () => {
   let findManyArgs: any;
@@ -92,6 +108,8 @@ test('findAll localizes cafe fields and searches both languages', async () => {
               purposesEn: ['Work'],
               amenities: ['Ổ cắm'],
               amenitiesEn: ['Power outlets'],
+              tags: ['ngoài trời'],
+              tagsEn: ['Outdoor'],
               _count: { savedCafes: 2 },
             },
           ];
@@ -106,6 +124,7 @@ test('findAll localizes cafe fields and searches both languages', async () => {
     search: 'quiet',
     vibes: ['Quiet'],
     purposes: ['Work'],
+    tags: ['Outdoor'],
   });
 
   assert.equal(findManyArgs.where.AND[0].OR.length, 6);
@@ -115,10 +134,15 @@ test('findAll localizes cafe fields and searches both languages', async () => {
   assert.deepEqual(findManyArgs.where.AND[2], {
     OR: [{ purposes: { hasSome: ['Work'] } }, { purposesEn: { hasSome: ['Work'] } }],
   });
+  assert.deepEqual(findManyArgs.where.AND[3], {
+    OR: [{ tags: { hasSome: ['Outdoor'] } }, { tagsEn: { hasSome: ['Outdoor'] } }],
+  });
   assert.equal(findManyArgs.select.vibesEn, true);
   assert.equal(findManyArgs.select.purposesEn, true);
   assert.equal(findManyArgs.select.amenities, true);
   assert.equal(findManyArgs.select.amenitiesEn, true);
+  assert.equal(findManyArgs.select.tags, true);
+  assert.equal(findManyArgs.select.tagsEn, true);
   assert.deepEqual(result.data, [
     {
       id: 'cafe-1',
@@ -128,6 +152,7 @@ test('findAll localizes cafe fields and searches both languages', async () => {
       vibes: ['Quiet'],
       purposes: ['Work'],
       amenities: ['Power outlets'],
+      tags: ['Outdoor'],
       savedCount: 2,
     },
   ]);

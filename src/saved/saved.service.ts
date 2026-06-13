@@ -33,6 +33,8 @@ export class SavedService {
             purposesEn: true,
             amenities: true,
             amenitiesEn: true,
+            tags: true,
+            tagsEn: true,
             coverImage: true,
             isFeatured: true,
           },

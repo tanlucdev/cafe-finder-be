@@ -12,6 +12,7 @@ const LOCALIZED_FIELDS = [
   ['vibes', 'vibesEn'],
   ['purposes', 'purposesEn'],
   ['amenities', 'amenitiesEn'],
+  ['tags', 'tagsEn'],
   ['parkingLocation', 'parkingLocationEn'],
 ] as const;
 
@@ -27,8 +28,21 @@ function pickLocalized<T extends LocalizedCafeRecord>(
 ) {
   const primary = locale === 'en' ? cafe[enKey] : cafe[viKey];
   const fallback = locale === 'en' ? cafe[viKey] : cafe[enKey];
-  if (Array.isArray(primary)) return primary.length ? primary : fallback || [];
+  if (Array.isArray(primary) || Array.isArray(fallback)) {
+    return dedupeLocalizedList(Array.isArray(primary) && primary.length ? primary : fallback || []);
+  }
   return primary || fallback || null;
+}
+
+function dedupeLocalizedList(values: unknown[]) {
+  const seen = new Set<string>();
+  return values.filter((value) => {
+    if (typeof value !== 'string') return true;
+    const key = value.trim().toLowerCase();
+    if (!key || seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 export function serializeLocalizedCafe<T extends LocalizedCafeRecord>(cafe: T, locale?: string) {

@@ -49,6 +49,12 @@ export class CafeFilterDto {
   @IsArray()
   purposes?: string[];
 
+  @ApiPropertyOptional({ example: 'outdoor,smoking', description: 'Comma-separated tags' })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value))
+  @IsArray()
+  tags?: string[];
+
   @ApiPropertyOptional({ default: 1 })
   @IsOptional()
   @Type(() => Number)
