@@ -19,6 +19,7 @@ model User {
   submissions         CafeSubmission[]
   passwordResetTokens PasswordResetToken[]
   savedCafes          SavedCafe[]
+  savedCollections    SavedCollection[]
 
   @@map("users")
 }
@@ -103,13 +104,25 @@ model SavedCafe {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
   cafeId         String   @map("cafe_id") @db.Uuid
-  collectionName String   @default("Yêu thích") @map("collection_name")
+  collectionName String?  @map("collection_name")
   createdAt      DateTime @default(now()) @map("created_at")
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cafeId])
   @@map("saved_cafes")
+}
+
+model SavedCollection {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, name])
+  @@map("saved_collections")
 }
 
 model CafeSubmission {

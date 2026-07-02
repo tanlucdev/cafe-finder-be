@@ -20,7 +20,9 @@ const isLocalOrigin = (origin: string) => {
   try {
     const { hostname, protocol } = new URL(origin);
     return (
-      ['http:', 'https:'].includes(protocol) && ['localhost', '127.0.0.1', '::1'].includes(hostname)
+      ['http:', 'https:'].includes(protocol) &&
+      (['localhost', '127.0.0.1', '::1'].includes(hostname) ||
+        /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hostname))
     );
   } catch {
     return false;

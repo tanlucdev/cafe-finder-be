@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, NotFoundException } from '@nestjs/common';
+import { Injectable, ConflictException, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { SaveCafeDto } from './dto/save-cafe.dto';
 import { serializeLocalizedCafe } from '../cafes/cafe.mapper';
@@ -6,6 +6,14 @@ import { serializeLocalizedCafe } from '../cafes/cafe.mapper';
 @Injectable()
 export class SavedService {
   constructor(private prisma: PrismaService) {}
+
+  private collectionName(name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) {
+      throw new BadRequestException('Collection name is required');
+    }
+    return trimmed.slice(0, 40);
+  }
 
   async getSaved(userId: string, locale?: string) {
     const saved = await this.prisma.savedCafe.findMany({
@@ -54,13 +62,17 @@ export class SavedService {
     if (!cafe) {
       throw new NotFoundException('Cafe not found');
     }
+    const collectionName = dto.collectionName ? this.collectionName(dto.collectionName) : null;
+    if (collectionName) {
+      await this.ensureCollection(userId, collectionName);
+    }
 
     try {
       return await this.prisma.savedCafe.create({
         data: {
           userId,
           cafeId: dto.cafeId,
-          collectionName: dto.collectionName || 'Favorites',
+          collectionName,
         },
       });
     } catch (e: any) {
@@ -86,13 +98,102 @@ export class SavedService {
   }
 
   async getCollections(userId: string) {
-    const result = await this.prisma.savedCafe.findMany({
-      where: { userId },
-      select: { collectionName: true },
-      distinct: ['collectionName'],
-      orderBy: { collectionName: 'asc' },
+    const [created, used] = await Promise.all([
+      this.prisma.savedCollection.findMany({
+        where: { userId },
+        select: { name: true, createdAt: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.savedCafe.findMany({
+        where: { userId },
+        select: { collectionName: true },
+        distinct: ['collectionName'],
+      }),
+    ]);
+
+    const names = new Map<string, { name: string; createdAt?: Date }>();
+    for (const collection of created) {
+      names.set(collection.name.toLowerCase(), collection);
+    }
+    for (const item of used) {
+      const name = item.collectionName?.trim();
+      if (name) names.set(name.toLowerCase(), { name });
+    }
+
+    return Array.from(names.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  async createCollection(userId: string, rawName: string) {
+    const name = this.collectionName(rawName);
+    return this.prisma.savedCollection.upsert({
+      where: { userId_name: { userId, name } },
+      update: {},
+      create: { userId, name },
+      select: { name: true, createdAt: true },
+    });
+  }
+
+  async renameCollection(userId: string, rawOldName: string, rawNewName: string) {
+    const oldName = this.collectionName(decodeURIComponent(rawOldName));
+    const newName = this.collectionName(rawNewName);
+
+    return this.prisma.$transaction(async (tx) => {
+      const collection = await tx.savedCollection.upsert({
+        where: { userId_name: { userId, name: newName } },
+        update: {},
+        create: { userId, name: newName },
+        select: { name: true, createdAt: true },
+      });
+      await tx.savedCafe.updateMany({
+        where: { userId, collectionName: oldName },
+        data: { collectionName: newName },
+      });
+      if (oldName !== newName) {
+        await tx.savedCollection.deleteMany({ where: { userId, name: oldName } });
+      }
+      return collection;
+    });
+  }
+
+  async deleteCollection(userId: string, rawName: string) {
+    const name = this.collectionName(decodeURIComponent(rawName));
+
+    await this.prisma.$transaction([
+      this.prisma.savedCafe.updateMany({
+        where: { userId, collectionName: name },
+        data: { collectionName: null },
+      }),
+      this.prisma.savedCollection.deleteMany({ where: { userId, name } }),
+    ]);
+
+    return { deleted: true };
+  }
+
+  async moveToCollection(userId: string, cafeId: string, rawName?: string | null) {
+    const collectionName = rawName == null ? null : this.collectionName(rawName);
+    const saved = await this.prisma.savedCafe.findUnique({
+      where: { userId_cafeId: { userId, cafeId } },
     });
 
-    return result.map((r) => r.collectionName);
+    if (!saved) {
+      throw new NotFoundException('Cafe not found in saved list');
+    }
+
+    if (collectionName) {
+      await this.ensureCollection(userId, collectionName);
+    }
+
+    return this.prisma.savedCafe.update({
+      where: { userId_cafeId: { userId, cafeId } },
+      data: { collectionName },
+    });
+  }
+
+  private ensureCollection(userId: string, name: string) {
+    return this.prisma.savedCollection.upsert({
+      where: { userId_name: { userId, name } },
+      update: {},
+      create: { userId, name },
+    });
   }
 }

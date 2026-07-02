@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsUUID } from 'class-validator';
+import { IsString, IsOptional, IsUUID, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class SaveCafeDto {
@@ -9,5 +9,6 @@ export class SaveCafeDto {
   @ApiPropertyOptional({ example: 'Favorite cafes', default: 'Favorites' })
   @IsOptional()
   @IsString()
+  @MaxLength(40)
   collectionName?: string;
 }
