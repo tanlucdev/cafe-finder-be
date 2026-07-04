@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import { randomUUID } from 'crypto';
+import { NextFunction, Request, Response } from 'express';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/filters/http-exception.filter';
 import compression = require('compression');
@@ -39,9 +41,31 @@ const getPort = () => {
   return port;
 };
 
+const requestTiming = (req: Request, res: Response, next: NextFunction) => {
+  const started = process.hrtime.bigint();
+  const requestId = (req.header('x-request-id') || randomUUID()).toString();
+
+  res.setHeader('x-request-id', requestId);
+  res.on('finish', () => {
+    const ms = Number(process.hrtime.bigint() - started) / 1_000_000;
+    console.log(
+      JSON.stringify({
+        type: 'request',
+        requestId,
+        method: req.method,
+        path: req.originalUrl || req.url,
+        status: res.statusCode,
+        ms: Math.round(ms),
+      }),
+    );
+  });
+  next();
+};
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
+  app.use(requestTiming);
   app.use(compression());
   app.setGlobalPrefix('api');
 

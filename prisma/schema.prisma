@@ -110,6 +110,7 @@ model SavedCafe {
   cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
 
   @@unique([userId, cafeId])
+  @@index([cafeId], map: "idx_saved_cafes_cafe_id")
   @@map("saved_cafes")
 }
 
