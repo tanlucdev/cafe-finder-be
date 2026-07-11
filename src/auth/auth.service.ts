@@ -46,7 +46,7 @@ export class AuthService {
   async login(dto: LoginDto) {
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
 
-    if (!user) {
+    if (!user || user.isHidden) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -62,21 +62,21 @@ export class AuthService {
 
   async getMe(userId: string) {
     return this.prisma.user.findUnique({
-      where: { id: userId },
+      where: { id: userId, isHidden: false },
       select: { id: true, email: true, displayName: true, role: true, createdAt: true },
     });
   }
 
   async updateProfile(userId: string, dto: UpdateProfileDto) {
     return this.prisma.user.update({
-      where: { id: userId },
+      where: { id: userId, isHidden: false },
       data: { displayName: dto.displayName },
       select: { id: true, email: true, displayName: true, role: true, createdAt: true },
     });
   }
 
   async changePassword(userId: string, dto: ChangePasswordDto) {
-    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    const user = await this.prisma.user.findUnique({ where: { id: userId, isHidden: false } });
 
     const isValid = await bcrypt.compare(dto.currentPassword, user!.passwordHash);
     if (!isValid) {
@@ -93,7 +93,8 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
 
     // Always return success to avoid email enumeration
-    if (!user) return { message: 'If the email exists, you will receive instructions via email' };
+    if (!user || user.isHidden)
+      return { message: 'If the email exists, you will receive instructions via email' };
 
     await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
 
@@ -112,9 +113,15 @@ export class AuthService {
   async resetPassword(token: string, newPassword: string) {
     const resetToken = await this.prisma.passwordResetToken.findUnique({
       where: { token },
+      include: { user: { select: { isHidden: true } } },
     });
 
-    if (!resetToken || resetToken.used || resetToken.expiresAt < new Date()) {
+    if (
+      !resetToken ||
+      resetToken.used ||
+      resetToken.expiresAt < new Date() ||
+      resetToken.user.isHidden
+    ) {
       throw new BadRequestException('Token is invalid or has expired');
     }
 

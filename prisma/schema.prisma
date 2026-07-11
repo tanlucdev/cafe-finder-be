@@ -15,6 +15,7 @@ model User {
   passwordHash        String               @map("password_hash")
   displayName         String?              @map("display_name")
   role                Role                 @default(USER)
+  isHidden            Boolean              @default(false) @map("is_hidden")
   createdAt           DateTime             @default(now()) @map("created_at")
   submissions         CafeSubmission[]
   passwordResetTokens PasswordResetToken[]

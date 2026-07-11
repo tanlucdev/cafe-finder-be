@@ -12,7 +12,7 @@ export class AdminStatsService {
     const pending_submissions = await this.prisma.cafeSubmission.count({
       where: { status: 'pending' },
     });
-    const total_users = await this.prisma.user.count();
+    const total_users = await this.prisma.user.count({ where: { isHidden: false } });
 
     return { total_cafes, published_cafes, featured_cafes, pending_submissions, total_users };
   }
