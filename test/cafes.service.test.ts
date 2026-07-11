@@ -9,6 +9,9 @@ function createService(overrides: any = {}) {
       findMany: async () => [],
       count: async () => 0,
     },
+    cafeVote: {
+      groupBy: async () => [],
+    },
     ...overrides.prisma,
   };
   const routeDistance = {
@@ -45,7 +48,7 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
       cafe: {
         findMany: async (args: any) => {
           findManyArgs = args;
-          return [{ id: 'cafe-1', _count: { savedCafes: 3 } }];
+          return [{ id: 'cafe-1', _count: { savedCafes: 3, cafeVotes: 4 } }];
         },
         count: async () => 1,
       },
@@ -58,32 +61,57 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
   assert.equal(findManyArgs.take, 9);
   assert.deepEqual(findManyArgs.orderBy[0], { rating: { sort: 'desc', nulls: 'last' } });
   assert.equal(findManyArgs.select.rating, true);
-  assert.deepEqual(result.data, [{ id: 'cafe-1', savedCount: 3 }]);
+  assert.deepEqual(result.data, [
+    { id: 'cafe-1', savedCount: 3, voteCount: 4, weeklyVoteCount: 0 },
+  ]);
   assert.deepEqual(result.meta, { total: 1, page: 2, limit: 9, totalPages: 1 });
 });
 
-test('findAll defaults popular sort to featured and saved cafes', async () => {
-  let findManyArgs: any;
+test('findAll popular sort uses previous-week votes before all-time and featured', async () => {
   const { service } = createService({
     prisma: {
       cafe: {
-        findMany: async (args: any) => {
-          findManyArgs = args;
-          return [];
-        },
-        count: async () => 0,
+        findMany: async () => [
+          {
+            id: 'featured',
+            isFeatured: true,
+            featuredOrder: 1,
+            createdAt: new Date('2026-01-01'),
+            _count: { savedCafes: 9, cafeVotes: 1 },
+          },
+          {
+            id: 'all-time',
+            isFeatured: false,
+            featuredOrder: null,
+            createdAt: new Date('2026-01-02'),
+            _count: { savedCafes: 1, cafeVotes: 8 },
+          },
+          {
+            id: 'weekly',
+            isFeatured: false,
+            featuredOrder: null,
+            createdAt: new Date('2026-01-03'),
+            _count: { savedCafes: 1, cafeVotes: 2 },
+          },
+        ],
+        count: async () => 3,
+      },
+      cafeVote: {
+        groupBy: async () => [{ cafeId: 'weekly', _count: { cafeId: 3 } }],
       },
     },
   });
 
-  await service.findAll({});
+  const result = await service.findAll({});
 
-  assert.deepEqual(findManyArgs.orderBy, [
-    { isFeatured: 'desc' },
-    { featuredOrder: { sort: 'asc', nulls: 'last' } },
-    { savedCafes: { _count: 'desc' } },
-    { createdAt: 'desc' },
-  ]);
+  assert.deepEqual(
+    result.data.map((cafe: any) => cafe.id),
+    ['weekly', 'all-time', 'featured'],
+  );
+  assert.deepEqual(
+    result.data.map((cafe: any) => cafe.weeklyVoteCount),
+    [3, 0, 0],
+  );
 });
 
 test('findAll localizes cafe fields and searches both languages', async () => {
@@ -110,7 +138,7 @@ test('findAll localizes cafe fields and searches both languages', async () => {
               amenitiesEn: ['Power outlets'],
               tags: ['ngoài trời'],
               tagsEn: ['Outdoor'],
-              _count: { savedCafes: 2 },
+              _count: { savedCafes: 2, cafeVotes: 5 },
             },
           ];
         },
@@ -154,6 +182,8 @@ test('findAll localizes cafe fields and searches both languages', async () => {
       amenities: ['Power outlets'],
       tags: ['Outdoor'],
       savedCount: 2,
+      voteCount: 5,
+      weeklyVoteCount: 0,
     },
   ]);
 });

@@ -20,6 +20,7 @@ model User {
   passwordResetTokens PasswordResetToken[]
   savedCafes          SavedCafe[]
   savedCollections    SavedCollection[]
+  cafeVotes           CafeVote[]
 
   @@map("users")
 }
@@ -82,6 +83,7 @@ model Cafe {
   createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   savedCafes        SavedCafe[]
+  cafeVotes         CafeVote[]
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
@@ -124,6 +126,21 @@ model SavedCollection {
 
   @@unique([userId, name])
   @@map("saved_collections")
+}
+
+model CafeVote {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  cafeId    String   @map("cafe_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, cafeId])
+  @@index([cafeId], map: "idx_cafe_votes_cafe_id")
+  @@index([createdAt], map: "idx_cafe_votes_created_at")
+  @@index([cafeId, createdAt], map: "idx_cafe_votes_cafe_created_at")
+  @@map("cafe_votes")
 }
 
 model CafeSubmission {

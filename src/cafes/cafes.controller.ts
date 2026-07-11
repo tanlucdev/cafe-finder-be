@@ -1,12 +1,18 @@
-import { Controller, Get, Header, Param, Query } from '@nestjs/common';
+import { Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CafesService } from './cafes.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
+import { CafeVotesService } from './cafe-votes.service';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Cafes')
 @Controller('cafes')
 export class CafesController {
-  constructor(private readonly cafesService: CafesService) {}
+  constructor(
+    private readonly cafesService: CafesService,
+    private readonly cafeVotesService: CafeVotesService,
+  ) {}
 
   @Get()
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
@@ -56,6 +62,13 @@ export class CafesController {
     return this.cafesService.getDistricts(locale);
   }
 
+  @Get('votes/me')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'List cafes voted by current user' })
+  getMyVotes(@CurrentUser() user: { id: string }) {
+    return this.cafeVotesService.getMyVotes(user.id);
+  }
+
   @Get('quiz-match')
   @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
   @ApiOperation({ summary: 'Recommend cafes by vibe and purpose' })
@@ -72,6 +85,13 @@ export class CafesController {
     const purposeArr = purposes ? purposes.split(',').filter(Boolean) : [];
     const tagArr = tags ? tags.split(',').filter(Boolean) : [];
     return this.cafesService.quizMatch(vibeArr, purposeArr, locale, tagArr);
+  }
+
+  @Post(':id/vote')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Vote for a cafe' })
+  vote(@Param('id') cafeId: string, @CurrentUser() user: { id: string }) {
+    return this.cafeVotesService.vote(user.id, cafeId);
   }
 
   @Get(':slug')

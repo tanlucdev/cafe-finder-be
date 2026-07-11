@@ -3,111 +3,15 @@ import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 import { RouteDistanceService } from './route-distance.service';
 import { serializeLocalizedCafe } from './cafe.mapper';
-
-type DistanceMode = 'straight' | 'route';
-
-interface NearbyCafeRow {
-  id: string;
-  name: string;
-  nameEn: string | null;
-  slug: string;
-  address: string | null;
-  addressEn: string | null;
-  district: string | null;
-  districtEn: string | null;
-  openingTime: Date | string | null;
-  closingTime: Date | string | null;
-  priceMin: number | null;
-  priceMax: number | null;
-  oneLiner: string | null;
-  oneLinerEn: string | null;
-  parkingLocation: string | null;
-  parkingLocationEn: string | null;
-  vibes: string[];
-  vibesEn: string[];
-  purposes: string[];
-  purposesEn: string[];
-  amenities: string[];
-  amenitiesEn: string[];
-  tags: string[];
-  tagsEn: string[];
-  coverImage: string | null;
-  lat: number;
-  lng: number;
-  distance_km: number | string;
-  distanceMode?: DistanceMode;
-  distance_mode?: DistanceMode;
-  straight_distance_km?: number | string;
-  duration_min?: number;
-}
-
-function priceRangeToFilter(priceRange: string): object {
-  switch (priceRange) {
-    case 'under_50k':
-      return { priceMax: { lte: 50000 } };
-    case 'price_50k_100k':
-      return { priceMin: { gte: 50000 }, priceMax: { lte: 100000 } };
-    case 'price_100k_150k':
-      return { priceMin: { gte: 100000 }, priceMax: { lte: 150000 } };
-    case 'above_150k':
-      return { priceMin: { gte: 150000 } };
-    default:
-      return {};
-  }
-}
-
-function cafeOrderBy(sort: CafeFilterDto['sort']): any[] {
-  if (sort === 'rating') {
-    return [
-      { rating: { sort: 'desc', nulls: 'last' } },
-      { isFeatured: 'desc' },
-      { featuredOrder: { sort: 'asc', nulls: 'last' } },
-      { createdAt: 'desc' },
-    ];
-  }
-
-  if (sort === 'newest') {
-    return [{ createdAt: 'desc' }];
-  }
-
-  return [
-    { isFeatured: 'desc' },
-    { featuredOrder: { sort: 'asc', nulls: 'last' } },
-    { savedCafes: { _count: 'desc' } },
-    { createdAt: 'desc' },
-  ];
-}
-
-function getVietnamTimeAsDate(now = new Date()) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Ho_Chi_Minh',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: false,
-  }).formatToParts(now);
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? 0);
-  const minute = Number(parts.find((part) => part.type === 'minute')?.value ?? 0);
-  const date = new Date(0);
-  date.setUTCHours(hour, minute, 0, 0);
-  return date;
-}
-
-function openNowWhere(openingTimeField: any, now = getVietnamTimeAsDate()) {
-  return {
-    openingTime: { not: null },
-    closingTime: { not: null },
-    OR: [
-      { closingTime: { equals: openingTimeField } },
-      { AND: [{ openingTime: { lte: now } }, { closingTime: { gt: now } }] },
-      {
-        AND: [
-          { closingTime: { lte: openingTimeField } },
-          { OR: [{ openingTime: { lte: now } }, { closingTime: { gt: now } }] },
-        ],
-      },
-    ],
-  };
-}
+import {
+  cafeListSelect,
+  cafeOrderBy,
+  DistanceMode,
+  NearbyCafeRow,
+  openNowWhere,
+  priceRangeToFilter,
+} from './cafes.helpers';
+import { CafeVotesService } from './cafe-votes.service';
 
 @Injectable()
 export class CafesService {
@@ -117,19 +21,8 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const {
-      locale,
-      district,
-      search,
-      priceRange,
-      vibes,
-      purposes,
-      tags,
-      page = 1,
-      limit = 12,
-      sort,
-      openNow,
-    } = filter;
+    const { locale, district, search, priceRange, vibes, purposes, tags } = filter;
+    const { page = 1, limit = 12, sort, openNow } = filter;
 
     const and: any[] = [];
     if (district) {
@@ -166,53 +59,20 @@ export class CafesService {
       ...(and.length && { AND: and }),
     };
 
+    if (!sort || sort === 'popular') return this.findAllPopular(where, locale, page, limit);
+
     const [cafes, total] = await Promise.all([
       this.prisma.cafe.findMany({
         where,
         skip: (page - 1) * limit,
         take: limit,
         orderBy: cafeOrderBy(sort),
-        select: {
-          id: true,
-          name: true,
-          nameEn: true,
-          slug: true,
-          address: true,
-          addressEn: true,
-          district: true,
-          districtEn: true,
-          openingTime: true,
-          closingTime: true,
-          priceMin: true,
-          priceMax: true,
-          oneLiner: true,
-          oneLinerEn: true,
-          parkingLocation: true,
-          parkingLocationEn: true,
-          vibes: true,
-          vibesEn: true,
-          purposes: true,
-          purposesEn: true,
-          amenities: true,
-          amenitiesEn: true,
-          tags: true,
-          tagsEn: true,
-          rating: true,
-          isFeatured: true,
-          featuredOrder: true,
-          coverImage: true,
-          createdAt: true,
-          updatedAt: true,
-          _count: { select: { savedCafes: true } },
-        },
+        select: cafeListSelect,
       }),
       this.prisma.cafe.count({ where }),
     ]);
 
-    const data = cafes.map(({ _count, ...cafe }) => ({
-      ...serializeLocalizedCafe(cafe, locale),
-      savedCount: _count.savedCafes,
-    }));
+    const data = cafes.map((cafe) => this.serializeListCafe(cafe, locale, 0));
 
     return {
       data,
@@ -225,16 +85,78 @@ export class CafesService {
     };
   }
 
+  private async findAllPopular(
+    where: any,
+    locale: string | undefined,
+    page: number,
+    limit: number,
+  ) {
+    const [cafes, total] = await Promise.all([
+      this.prisma.cafe.findMany({
+        where,
+        select: cafeListSelect,
+      }),
+      this.prisma.cafe.count({ where }),
+    ]);
+    const { start, end } = CafeVotesService.weekRange();
+    const weekly = cafes.length
+      ? await this.prisma.cafeVote.groupBy({
+          by: ['cafeId'],
+          where: {
+            createdAt: { gte: start, lt: end },
+            cafeId: { in: cafes.map((cafe) => cafe.id) },
+          },
+          _count: { cafeId: true },
+        })
+      : [];
+    const weeklyByCafe = new Map(weekly.map((row) => [row.cafeId, row._count.cafeId]));
+    const sorted = cafes
+      .map((cafe) => ({ cafe, weeklyVoteCount: weeklyByCafe.get(cafe.id) ?? 0 }))
+      .sort((a, b) => {
+        return (
+          b.weeklyVoteCount - a.weeklyVoteCount ||
+          b.cafe._count.cafeVotes - a.cafe._count.cafeVotes ||
+          Number(b.cafe.isFeatured) - Number(a.cafe.isFeatured) ||
+          (a.cafe.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
+            (b.cafe.featuredOrder ?? Number.MAX_SAFE_INTEGER) ||
+          b.cafe._count.savedCafes - a.cafe._count.savedCafes ||
+          b.cafe.createdAt.getTime() - a.cafe.createdAt.getTime()
+        );
+      })
+      .slice((page - 1) * limit, page * limit)
+      .map(({ cafe, weeklyVoteCount }) => this.serializeListCafe(cafe, locale, weeklyVoteCount));
+
+    return {
+      data: sorted,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
+  }
+
+  private serializeListCafe(cafe: any, locale?: string, weeklyVoteCount = 0) {
+    const { _count, ...rest } = cafe;
+    return {
+      ...serializeLocalizedCafe(rest, locale),
+      savedCount: _count.savedCafes,
+      voteCount: _count.cafeVotes,
+      weeklyVoteCount,
+    };
+  }
+
   async findBySlug(slug: string, locale?: string) {
-    const cafe = await this.prisma.cafe.findUnique({
+    const cafe = await this.prisma.cafe.findFirst({
       where: { slug, isPublished: true },
+      include: { _count: { select: { savedCafes: true, cafeVotes: true } } },
     });
 
     if (!cafe) {
       throw new NotFoundException(`Cafe not found with slug: ${slug}`);
     }
 
-    return serializeLocalizedCafe(cafe, locale);
+    const { start, end } = CafeVotesService.weekRange();
+    const weeklyVoteCount = await this.prisma.cafeVote.count({
+      where: { cafeId: cafe.id, createdAt: { gte: start, lt: end } },
+    });
+    return this.serializeListCafe(cafe, locale, weeklyVoteCount);
   }
 
   async findNearby(
