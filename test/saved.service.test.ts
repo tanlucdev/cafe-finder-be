@@ -85,6 +85,8 @@ test('moveToCollection accepts null to move a cafe back to All', async () => {
     },
   });
 
-  assert.deepEqual(await service.moveToCollection('user-1', 'cafe-1', null), { collectionName: null });
+  assert.deepEqual(await service.moveToCollection('user-1', 'cafe-1', null), {
+    collectionName: null,
+  });
   assert.deepEqual(calls, ['cafe:null']);
 });
