@@ -20,6 +20,7 @@ osrm-data/
 # Logs
 *.log
 npm-debug.log*
+image-migration-report-*.json
 
 # OS
 .DS_Store

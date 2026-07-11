@@ -1,6 +1,7 @@
 import { Injectable, InternalServerErrorException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'child_process';
+import { createHash } from 'crypto';
 import { lookup } from 'dns/promises';
 import { promises as fsp } from 'fs';
 import { isIP } from 'net';
@@ -24,6 +25,62 @@ const SIPS_PATH = '/usr/bin/sips';
 
 const run = promisify(execFile);
 type UploadedFile = Express.Multer.File;
+type ImageStorageProvider = 'supabase' | 'cloudinary';
+
+export function getImageStorageProvider(value?: string): ImageStorageProvider {
+  return value === 'cloudinary' ? 'cloudinary' : 'supabase';
+}
+
+export function signCloudinaryParams(params: Record<string, string>, apiSecret: string) {
+  const payload = Object.keys(params)
+    .sort()
+    .map((key) => `${key}=${params[key]}`)
+    .join('&');
+  return createHash('sha1').update(`${payload}${apiSecret}`).digest('hex');
+}
+
+export function isCloudinaryUrl(imageUrl: string) {
+  try {
+    return new URL(imageUrl).hostname === 'res.cloudinary.com';
+  } catch {
+    return false;
+  }
+}
+
+export function cloudinaryPublicIdFromUrl(imageUrl: string, cloudName?: string): string | null {
+  try {
+    const url = new URL(imageUrl);
+    if (url.hostname !== 'res.cloudinary.com') return null;
+    if (cloudName && url.pathname.split('/')[1] !== cloudName) return null;
+
+    const marker = '/image/upload/';
+    const markerIndex = url.pathname.indexOf(marker);
+    if (markerIndex === -1) return null;
+
+    const parts = url.pathname
+      .slice(markerIndex + marker.length)
+      .split('/')
+      .filter(Boolean);
+    const versionIndex = parts.findIndex((part) => /^v\d+$/.test(part));
+    const publicPath = (versionIndex === -1 ? parts : parts.slice(versionIndex + 1)).join('/');
+    return publicPath.replace(/\.[^/.]+$/, '') || null;
+  } catch {
+    return null;
+  }
+}
+
+export function isSupabasePublicStorageUrl(imageUrl: string, supabaseUrl = '') {
+  try {
+    const url = new URL(imageUrl);
+    const configuredHost = supabaseUrl ? new URL(supabaseUrl).hostname : '';
+    return (
+      url.pathname.startsWith('/storage/v1/object/public/') &&
+      (url.hostname.endsWith('.supabase.co') || url.hostname === configuredHost)
+    );
+  } catch {
+    return false;
+  }
+}
 
 function readNumberConfig(value: unknown, fallback: number) {
   const parsed = Number(value);
@@ -76,18 +133,35 @@ function extensionFromUrl(url: URL) {
   return extension || '.jpg';
 }
 
+function basenameFromUrl(url: URL) {
+  const name = basename(decodeURIComponent(url.pathname));
+  return name || `remote-image${extensionFromUrl(url)}`;
+}
+
+function safePublicIdBaseName(name: string) {
+  return basename(name, extname(name)).replace(/[^a-zA-Z0-9_.-]+/g, '_') || 'image';
+}
+
 @Injectable()
 export class StorageService {
+  private readonly provider: ImageStorageProvider;
   private readonly supabaseUrl: string;
   private readonly supabaseKey: string;
   private readonly bucket: string;
+  private readonly cloudinaryCloudName: string;
+  private readonly cloudinaryApiKey: string;
+  private readonly cloudinaryApiSecret: string;
   private readonly targetBytes: number;
   private readonly qualitySteps: number[];
 
   constructor(private config: ConfigService) {
+    this.provider = getImageStorageProvider(config.get('IMAGE_STORAGE_PROVIDER'));
     this.supabaseUrl = config.get('SUPABASE_URL', '');
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
+    this.cloudinaryCloudName = config.get('CLOUDINARY_CLOUD_NAME', '');
+    this.cloudinaryApiKey = config.get('CLOUDINARY_API_KEY', '');
+    this.cloudinaryApiSecret = config.get('CLOUDINARY_API_SECRET', '');
     this.targetBytes =
       readNumberConfig(config.get('IMAGE_MAX_OUTPUT_KB'), DEFAULT_TARGET_KB) * 1024;
     this.qualitySteps = buildQualitySteps(
@@ -235,7 +309,7 @@ export class StorageService {
 
       return this.uploadImage(
         {
-          originalname: `remote-image${extensionFromUrl(parsedUrl)}`,
+          originalname: basenameFromUrl(parsedUrl),
           mimetype: contentType,
           buffer,
         } as UploadedFile,
@@ -253,6 +327,11 @@ export class StorageService {
   }
 
   async uploadImage(file: UploadedFile, folder: string = 'cafes'): Promise<string> {
+    if (this.provider === 'cloudinary') return this.uploadImageToCloudinary(file, folder);
+    return this.uploadImageToSupabase(file, folder);
+  }
+
+  private async uploadImageToSupabase(file: UploadedFile, folder: string): Promise<string> {
     if (!this.supabaseUrl || !this.supabaseKey) {
       throw new InternalServerErrorException('Supabase is not configured');
     }
@@ -309,13 +388,62 @@ export class StorageService {
     return `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/${fileName}`;
   }
 
+  private async uploadImageToCloudinary(file: UploadedFile, folder: string): Promise<string> {
+    if (!this.cloudinaryCloudName || !this.cloudinaryApiKey || !this.cloudinaryApiSecret) {
+      throw new InternalServerErrorException('Cloudinary is not configured');
+    }
+
+    let webpBuffer: Buffer;
+    try {
+      webpBuffer = await this.convertToBestWebp(file);
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Image conversion failed: ${(error as Error).message}`,
+      );
+    }
+
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const publicId = `${timestamp}-${safePublicIdBaseName(file.originalname)}`;
+    const signedParams = { folder, public_id: publicId, timestamp };
+    const body = new FormData();
+    body.set('file', new Blob([webpBuffer as any], { type: 'image/webp' }), `${publicId}.webp`);
+    body.set('api_key', this.cloudinaryApiKey);
+    body.set('folder', folder);
+    body.set('public_id', publicId);
+    body.set('timestamp', timestamp);
+    body.set('signature', signCloudinaryParams(signedParams, this.cloudinaryApiSecret));
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${this.cloudinaryCloudName}/image/upload`,
+      { method: 'POST', body },
+    );
+    const raw = await response.text();
+
+    let parsed: { secure_url?: string; error?: { message?: string } } = {};
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      /* not JSON */
+    }
+
+    if (!response.ok || !parsed.secure_url) {
+      throw new InternalServerErrorException(
+        `Cloudinary upload failed: ${parsed.error?.message ?? raw}`,
+      );
+    }
+
+    return parsed.secure_url;
+  }
+
   async deleteImage(imageUrl: string): Promise<void> {
+    if (isCloudinaryUrl(imageUrl)) return this.deleteCloudinaryImage(imageUrl);
+    if (this.provider !== 'supabase') return;
     if (!this.supabaseUrl || !this.supabaseKey) return;
 
-    const path = imageUrl.replace(
-      `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/`,
-      '',
-    );
+    const publicPrefix = `${this.supabaseUrl}/storage/v1/object/public/${this.bucket}/`;
+    if (!imageUrl.startsWith(publicPrefix)) return;
+
+    const path = imageUrl.slice(publicPrefix.length);
 
     await fetch(`${this.supabaseUrl}/storage/v1/object/${this.bucket}/${path}`, {
       method: 'DELETE',
@@ -323,6 +451,26 @@ export class StorageService {
         apikey: this.supabaseKey,
         Authorization: `Bearer ${this.supabaseKey}`,
       },
+    });
+  }
+
+  private async deleteCloudinaryImage(imageUrl: string): Promise<void> {
+    if (!this.cloudinaryCloudName || !this.cloudinaryApiKey || !this.cloudinaryApiSecret) return;
+
+    const publicId = cloudinaryPublicIdFromUrl(imageUrl, this.cloudinaryCloudName);
+    if (!publicId) return;
+
+    const timestamp = String(Math.floor(Date.now() / 1000));
+    const signedParams = { public_id: publicId, timestamp };
+    const body = new FormData();
+    body.set('api_key', this.cloudinaryApiKey);
+    body.set('public_id', publicId);
+    body.set('timestamp', timestamp);
+    body.set('signature', signCloudinaryParams(signedParams, this.cloudinaryApiSecret));
+
+    await fetch(`https://api.cloudinary.com/v1_1/${this.cloudinaryCloudName}/image/destroy`, {
+      method: 'POST',
+      body,
     });
   }
 }

@@ -16,6 +16,8 @@
     "test": "node --test -r ts-node/register test/*.test.ts",
     "test:watch": "node --test --watch -r ts-node/register test/*.test.ts",
     "test:cov": "node --test --experimental-test-coverage -r ts-node/register test/*.test.ts",
+    "migrate:images:dry-run": "ts-node scripts/migrate-images-to-cloudinary.ts --dry-run",
+    "migrate:images": "ts-node scripts/migrate-images-to-cloudinary.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:studio": "prisma studio",
