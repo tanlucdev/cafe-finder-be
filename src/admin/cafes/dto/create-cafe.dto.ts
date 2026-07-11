@@ -22,6 +22,12 @@ function parseOptionalBoolean({ obj, key, value }: any) {
   return raw;
 }
 
+function emptyTextToNull({ value }: any) {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim();
+  return trimmed === '' ? null : trimmed;
+}
+
 export class CreateCafeDto {
   @ApiProperty({ example: 'The Workshop Coffee' })
   @IsString()
@@ -137,11 +143,13 @@ export class CreateCafeDto {
 
   @ApiPropertyOptional({ example: 'Cold Brew' })
   @IsOptional()
+  @Transform(emptyTextToNull)
   @IsString()
-  signatureDrink?: string;
+  signatureDrink?: string | null;
 
   @ApiPropertyOptional({ example: 'Cold Brew' })
   @IsOptional()
+  @Transform(emptyTextToNull)
   @IsString()
   signatureDrinkEn?: string | null;
 
