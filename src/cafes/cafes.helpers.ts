@@ -68,7 +68,7 @@ export const cafeListSelect = {
   coverImage: true,
   createdAt: true,
   updatedAt: true,
-  _count: { select: { savedCafes: true, cafeVotes: true } },
+  _count: { select: { savedCafes: true } },
 };
 
 export function priceRangeToFilter(priceRange: string): object {

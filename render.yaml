@@ -3,7 +3,7 @@ services:
     name: cafe-finder-be
     runtime: node
     buildCommand: npm ci --include=dev && npx prisma generate && npm run build
-    startCommand: node dist/main
+    startCommand: npx prisma migrate deploy && node dist/main
     envVars:
       - key: NODE_ENV
         value: production

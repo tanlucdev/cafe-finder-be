@@ -71,8 +71,11 @@ export class CafesService {
       }),
       this.prisma.cafe.count({ where }),
     ]);
+    const { totalByCafe } = await this.getVoteCountMaps(cafes.map((cafe) => cafe.id));
 
-    const data = cafes.map((cafe) => this.serializeListCafe(cafe, locale, 0));
+    const data = cafes.map((cafe) =>
+      this.serializeListCafe(cafe, locale, 0, totalByCafe.get(cafe.id) ?? 0),
+    );
 
     return {
       data,
@@ -98,24 +101,13 @@ export class CafesService {
       }),
       this.prisma.cafe.count({ where }),
     ]);
-    const { start, end } = CafeVotesService.weekRange();
-    const weekly = cafes.length
-      ? await this.prisma.cafeVote.groupBy({
-          by: ['cafeId'],
-          where: {
-            createdAt: { gte: start, lt: end },
-            cafeId: { in: cafes.map((cafe) => cafe.id) },
-          },
-          _count: { cafeId: true },
-        })
-      : [];
-    const weeklyByCafe = new Map(weekly.map((row) => [row.cafeId, row._count.cafeId]));
+    const { weeklyByCafe, totalByCafe } = await this.getVoteCountMaps(cafes.map((cafe) => cafe.id));
     const sorted = cafes
       .map((cafe) => ({ cafe, weeklyVoteCount: weeklyByCafe.get(cafe.id) ?? 0 }))
       .sort((a, b) => {
         return (
           b.weeklyVoteCount - a.weeklyVoteCount ||
-          b.cafe._count.cafeVotes - a.cafe._count.cafeVotes ||
+          (totalByCafe.get(b.cafe.id) ?? 0) - (totalByCafe.get(a.cafe.id) ?? 0) ||
           Number(b.cafe.isFeatured) - Number(a.cafe.isFeatured) ||
           (a.cafe.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
             (b.cafe.featuredOrder ?? Number.MAX_SAFE_INTEGER) ||
@@ -124,7 +116,9 @@ export class CafesService {
         );
       })
       .slice((page - 1) * limit, page * limit)
-      .map(({ cafe, weeklyVoteCount }) => this.serializeListCafe(cafe, locale, weeklyVoteCount));
+      .map(({ cafe, weeklyVoteCount }) =>
+        this.serializeListCafe(cafe, locale, weeklyVoteCount, totalByCafe.get(cafe.id) ?? 0),
+      );
 
     return {
       data: sorted,
@@ -132,31 +126,61 @@ export class CafesService {
     };
   }
 
-  private serializeListCafe(cafe: any, locale?: string, weeklyVoteCount = 0) {
+  private serializeListCafe(cafe: any, locale?: string, weeklyVoteCount = 0, voteCount = 0) {
     const { _count, ...rest } = cafe;
     return {
       ...serializeLocalizedCafe(rest, locale),
       savedCount: _count.savedCafes,
-      voteCount: _count.cafeVotes,
+      voteCount,
       weeklyVoteCount,
     };
+  }
+
+  private async getVoteCountMaps(cafeIds: string[]) {
+    if (!cafeIds.length)
+      return { weeklyByCafe: new Map<string, number>(), totalByCafe: new Map<string, number>() };
+    const { start, end } = CafeVotesService.weekRange();
+    try {
+      const [weekly, total] = await Promise.all([
+        this.prisma.cafeVote.groupBy({
+          by: ['cafeId'],
+          where: { createdAt: { gte: start, lt: end }, cafeId: { in: cafeIds } },
+          _count: { cafeId: true },
+        }),
+        this.prisma.cafeVote.groupBy({
+          by: ['cafeId'],
+          where: { cafeId: { in: cafeIds } },
+          _count: { cafeId: true },
+        }),
+      ]);
+
+      return {
+        weeklyByCafe: new Map(weekly.map((row) => [row.cafeId, row._count.cafeId])),
+        totalByCafe: new Map(total.map((row) => [row.cafeId, row._count.cafeId])),
+      };
+    } catch {
+      // ponytail: supports deployments before cafe_votes migration; remove after migrate deploy is guaranteed.
+      return { weeklyByCafe: new Map<string, number>(), totalByCafe: new Map<string, number>() };
+    }
   }
 
   async findBySlug(slug: string, locale?: string) {
     const cafe = await this.prisma.cafe.findFirst({
       where: { slug, isPublished: true },
-      include: { _count: { select: { savedCafes: true, cafeVotes: true } } },
+      include: { _count: { select: { savedCafes: true } } },
     });
 
     if (!cafe) {
       throw new NotFoundException(`Cafe not found with slug: ${slug}`);
     }
 
-    const { start, end } = CafeVotesService.weekRange();
-    const weeklyVoteCount = await this.prisma.cafeVote.count({
-      where: { cafeId: cafe.id, createdAt: { gte: start, lt: end } },
-    });
-    return this.serializeListCafe(cafe, locale, weeklyVoteCount);
+    const { weeklyByCafe, totalByCafe } = await this.getVoteCountMaps([cafe.id]);
+    return this.serializeListCafe(
+      cafe,
+      locale,
+      weeklyByCafe.get(cafe.id) ?? 0,
+      totalByCafe.get(cafe.id) ?? 0,
+    );
   }
 
   async findNearby(

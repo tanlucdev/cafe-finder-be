@@ -52,6 +52,10 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
         },
         count: async () => 1,
       },
+      cafeVote: {
+        groupBy: async ({ where }: any) =>
+          where.createdAt ? [] : [{ cafeId: 'cafe-1', _count: { cafeId: 4 } }],
+      },
     },
   });
 
@@ -97,7 +101,14 @@ test('findAll popular sort uses previous-week votes before all-time and featured
         count: async () => 3,
       },
       cafeVote: {
-        groupBy: async () => [{ cafeId: 'weekly', _count: { cafeId: 3 } }],
+        groupBy: async ({ where }: any) =>
+          where.createdAt
+            ? [{ cafeId: 'weekly', _count: { cafeId: 3 } }]
+            : [
+                { cafeId: 'featured', _count: { cafeId: 1 } },
+                { cafeId: 'all-time', _count: { cafeId: 8 } },
+                { cafeId: 'weekly', _count: { cafeId: 2 } },
+              ],
       },
     },
   });
@@ -144,6 +155,10 @@ test('findAll localizes cafe fields and searches both languages', async () => {
         },
         count: async () => 1,
       },
+      cafeVote: {
+        groupBy: async ({ where }: any) =>
+          where.createdAt ? [] : [{ cafeId: 'cafe-1', _count: { cafeId: 5 } }],
+      },
     },
   });
 
@@ -183,6 +198,40 @@ test('findAll localizes cafe fields and searches both languages', async () => {
       tags: ['Outdoor'],
       savedCount: 2,
       voteCount: 5,
+      weeklyVoteCount: 0,
+    },
+  ]);
+});
+
+test('findAll still returns cafes when vote table is missing', async () => {
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async () => [
+          {
+            id: 'cafe-1',
+            createdAt: new Date('2026-01-01'),
+            _count: { savedCafes: 2 },
+          },
+        ],
+        count: async () => 1,
+      },
+      cafeVote: {
+        groupBy: async () => {
+          throw new Error('relation "cafe_votes" does not exist');
+        },
+      },
+    },
+  });
+
+  const result = await service.findAll({});
+
+  assert.deepEqual(result.data, [
+    {
+      id: 'cafe-1',
+      createdAt: new Date('2026-01-01'),
+      savedCount: 2,
+      voteCount: 0,
       weeklyVoteCount: 0,
     },
   ]);
