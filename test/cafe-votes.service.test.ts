@@ -23,6 +23,15 @@ function createService(overrides: any = {}) {
         return data;
       },
       count: async ({ where }: any) => votes.filter((vote) => vote.cafeId === where.cafeId).length,
+      deleteMany: async ({ where }: any) => {
+        const startLength = votes.length;
+        for (let index = votes.length - 1; index >= 0; index -= 1) {
+          if (votes[index].userId === where.userId && votes[index].cafeId === where.cafeId) {
+            votes.splice(index, 1);
+          }
+        }
+        return { count: startLength - votes.length };
+      },
       findMany: async ({ where }: any) =>
         votes
           .filter((vote) => vote.userId === where.userId)
@@ -66,6 +75,19 @@ test('same user can vote multiple cafes', async () => {
   await service.vote('user-1', 'cafe-2');
 
   assert.deepEqual(votes.map((vote) => vote.cafeId).sort(), ['cafe-1', 'cafe-2']);
+});
+
+test('unvote removes current user cafe vote', async () => {
+  const { service, votes } = createService();
+
+  await service.vote('user-1', 'cafe-1');
+  assert.deepEqual(await service.unvote('user-1', 'cafe-1'), {
+    cafeId: 'cafe-1',
+    weeklyVoteCount: 0,
+    voteCount: 0,
+    voted: false,
+  });
+  assert.equal(votes.length, 0);
 });
 
 test('missing or unpublished cafe fails', async () => {

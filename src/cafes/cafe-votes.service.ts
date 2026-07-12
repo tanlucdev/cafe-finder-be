@@ -48,6 +48,24 @@ export class CafeVotesService {
     return { cafeId, weeklyVoteCount, voteCount, voted: true };
   }
 
+  async unvote(userId: string, cafeId: string) {
+    const cafe = await this.prisma.cafe.findFirst({
+      where: { id: cafeId, isPublished: true },
+      select: { id: true },
+    });
+    if (!cafe) throw new NotFoundException('Cafe not found');
+
+    await this.prisma.cafeVote.deleteMany({ where: { userId, cafeId } });
+
+    const { start, end } = CafeVotesService.weekRange();
+    const [weeklyVoteCount, voteCount] = await Promise.all([
+      this.prisma.cafeVote.count({ where: { cafeId, createdAt: { gte: start, lt: end } } }),
+      this.prisma.cafeVote.count({ where: { cafeId } }),
+    ]);
+
+    return { cafeId, weeklyVoteCount, voteCount, voted: false };
+  }
+
   async getMyVotes(userId: string) {
     const votes = await this.prisma.cafeVote.findMany({
       where: { userId },

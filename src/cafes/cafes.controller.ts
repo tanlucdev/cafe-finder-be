@@ -1,4 +1,4 @@
-import { Controller, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Controller, Delete, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { CafesService } from './cafes.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
@@ -92,6 +92,13 @@ export class CafesController {
   @ApiOperation({ summary: 'Vote for a cafe' })
   vote(@Param('id') cafeId: string, @CurrentUser() user: { id: string }) {
     return this.cafeVotesService.vote(user.id, cafeId);
+  }
+
+  @Delete(':id/vote')
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({ summary: 'Remove current user vote for a cafe' })
+  unvote(@Param('id') cafeId: string, @CurrentUser() user: { id: string }) {
+    return this.cafeVotesService.unvote(user.id, cafeId);
   }
 
   @Get(':slug')
