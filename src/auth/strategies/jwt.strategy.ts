@@ -3,6 +3,7 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../../prisma/prisma.service';
+import { parseCookies } from '../services/auth-cookie.service';
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
@@ -11,7 +12,10 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     config: ConfigService,
   ) {
     super({
-      jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+      jwtFromRequest: (req) =>
+        parseCookies(req?.headers?.cookie)[
+          config.get<string>('JWT_COOKIE_NAME') || 'cafe-auth-token'
+        ] || ExtractJwt.fromAuthHeaderAsBearerToken()(req),
       secretOrKey: config.get<string>('JWT_SECRET'),
     });
   }

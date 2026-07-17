@@ -12,7 +12,9 @@ datasource db {
 model User {
   id                  String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   email               String               @unique
-  passwordHash        String               @map("password_hash")
+  passwordHash        String?              @map("password_hash")
+  googleSub           String?              @unique @map("google_sub")
+  avatarUrl           String?              @map("avatar_url")
   displayName         String?              @map("display_name")
   role                Role                 @default(USER)
   isHidden            Boolean              @default(false) @map("is_hidden")

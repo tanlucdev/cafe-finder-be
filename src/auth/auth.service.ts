@@ -13,6 +13,7 @@ import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { UpdateProfileDto } from './dto/update-profile.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { mapAuthUser } from './auth-user.mapper';
 
 @Injectable()
 export class AuthService {
@@ -39,14 +40,29 @@ export class AuthService {
       select: { id: true, email: true, displayName: true, role: true, createdAt: true },
     });
 
-    const token = this.generateToken(user.id, user.role);
+    const token = this.signAuthToken(user.id, user.role);
     return { token, user };
   }
 
   async login(dto: LoginDto) {
-    const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email: dto.email },
+      select: {
+        id: true,
+        email: true,
+        passwordHash: true,
+        displayName: true,
+        role: true,
+        isHidden: true,
+        createdAt: true,
+      },
+    });
 
     if (!user || user.isHidden) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (!user.passwordHash) {
       throw new UnauthorizedException('Invalid email or password');
     }
 
@@ -55,15 +71,21 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const token = this.generateToken(user.id, user.role);
-    const { passwordHash: _passwordHash, ...userWithoutPassword } = user;
-    return { token, user: userWithoutPassword };
+    const token = this.signAuthToken(user.id, user.role);
+    return { token, user: mapAuthUser(user) };
   }
 
   async getMe(userId: string) {
     return this.prisma.user.findUnique({
       where: { id: userId, isHidden: false },
-      select: { id: true, email: true, displayName: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        createdAt: true,
+        avatarUrl: true,
+      },
     });
   }
 
@@ -78,7 +100,11 @@ export class AuthService {
   async changePassword(userId: string, dto: ChangePasswordDto) {
     const user = await this.prisma.user.findUnique({ where: { id: userId, isHidden: false } });
 
-    const isValid = await bcrypt.compare(dto.currentPassword, user!.passwordHash);
+    if (!user?.passwordHash) {
+      throw new UnauthorizedException('Current password is incorrect');
+    }
+
+    const isValid = await bcrypt.compare(dto.currentPassword, user.passwordHash);
     if (!isValid) {
       throw new UnauthorizedException('Current password is incorrect');
     }
@@ -141,7 +167,7 @@ export class AuthService {
     return { message: 'Password updated successfully' };
   }
 
-  private generateToken(userId: string, role: string) {
+  signAuthToken(userId: string, role: string) {
     return this.jwtService.sign({ sub: userId, role });
   }
 }
