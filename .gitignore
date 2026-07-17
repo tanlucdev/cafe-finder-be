@@ -4,6 +4,9 @@ node_modules/
 # Build output
 dist/
 *.tsbuildinfo
+scripts/*.js
+scripts/*.js.map
+scripts/*.d.ts
 
 # Environment variables — NEVER commit these
 .env
@@ -21,6 +24,7 @@ osrm-data/
 *.log
 npm-debug.log*
 image-migration-report-*.json
+backups/*.dump
 
 # OS
 .DS_Store
