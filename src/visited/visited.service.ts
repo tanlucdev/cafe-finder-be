@@ -9,6 +9,10 @@ type VisitedCafeRow = {
   cafe: Record<string, any>;
 };
 
+type MarkVisitedRow = {
+  cafeId: string;
+};
+
 @Injectable()
 export class VisitedService {
   constructor(private prisma: PrismaService) {}
@@ -65,17 +69,24 @@ export class VisitedService {
   }
 
   async mark(userId: string, cafeId: string) {
-    const cafe = await this.prisma.cafe.findFirst({
-      where: { id: cafeId, isPublished: true },
-      select: { id: true },
-    });
-    if (!cafe) throw new NotFoundException('Cafe not found');
-
-    await this.prisma.visitedCafe.upsert({
-      where: { userId_cafeId: { userId, cafeId } },
-      update: {},
-      create: { userId, cafeId },
-    });
+    const [row] = await this.prisma.$queryRaw<MarkVisitedRow[]>`
+      WITH cafe AS (
+        SELECT id
+        FROM cafes
+        WHERE id = ${cafeId}::uuid
+          AND is_published = true
+      ),
+      inserted AS (
+        INSERT INTO visited_cafes (user_id, cafe_id)
+        SELECT ${userId}::uuid, id
+        FROM cafe
+        ON CONFLICT (user_id, cafe_id) DO NOTHING
+        RETURNING cafe_id
+      )
+      SELECT id AS "cafeId"
+      FROM cafe
+    `;
+    if (!row) throw new NotFoundException('Cafe not found');
 
     return { cafeId, visited: true };
   }

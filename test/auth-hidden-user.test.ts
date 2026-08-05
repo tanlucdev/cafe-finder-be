@@ -57,25 +57,13 @@ test('AuthService rejects passwordless users on password login', async () => {
   );
 });
 
-test('JwtStrategy rejects hidden users', async () => {
-  let findUniqueArgs: any;
-  const strategy = new JwtStrategy(
-    {
-      user: {
-        findUnique: async (args: any) => {
-          findUniqueArgs = args;
-          return null;
-        },
-      },
-    } as any,
-    { get: () => 'test-secret' } as any,
-  );
+test('JwtStrategy returns JWT payload user without Prisma lookup', async () => {
+  const strategy = new JwtStrategy({ get: () => 'test-secret' } as any);
 
-  await assert.rejects(
-    () => strategy.validate({ sub: 'user-1', role: 'USER' }),
-    UnauthorizedException,
-  );
-  assert.deepEqual(findUniqueArgs.where, { id: 'user-1', isHidden: false });
+  assert.deepEqual(await strategy.validate({ sub: 'user-1', role: 'USER' }), {
+    id: 'user-1',
+    role: 'USER',
+  });
 });
 
 test('parseCookies reads URL encoded auth cookie values', () => {
