@@ -47,6 +47,9 @@ npx prisma db push       # Sync schema → DB (không tạo migration)
 | `IMAGE_WEBP_MAX_QUALITY` | Quality WebP bắt đầu thử (default `92`) |
 | `IMAGE_WEBP_MIN_QUALITY` | Quality WebP thấp nhất được phép thử (default `84`) |
 | `GOOGLE_PLACES_API_KEY` | Optional |
+| `GOOGLE_CLIENT_ID` | Google OAuth client ID |
+| `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Backend callback URL, ví dụ `http://localhost:3001/api/auth/oauth/google/callback` |
 | `PORT` | Default `3001` |
 | `FRONTEND_URL` | CORS origin (default `http://localhost:3000`) |
 | `APP_URL` | Frontend URL — dùng để tạo link reset password trong email |

@@ -9,16 +9,18 @@ import { mapAuthUser } from '../auth-user.mapper';
 @Injectable()
 export class GoogleOAuthService {
   private client: OAuth2Client;
+  private clientId: string;
 
   constructor(
-    private config: ConfigService,
+    config: ConfigService,
     private prisma: PrismaService,
     private authService: AuthService,
   ) {
+    this.clientId = requireConfig(config, 'GOOGLE_CLIENT_ID');
     this.client = new OAuth2Client(
-      config.get<string>('GOOGLE_CLIENT_ID'),
-      config.get<string>('GOOGLE_CLIENT_SECRET'),
-      config.get<string>('GOOGLE_OAUTH_REDIRECT_URI'),
+      this.clientId,
+      requireConfig(config, 'GOOGLE_CLIENT_SECRET'),
+      requireConfig(config, 'GOOGLE_OAUTH_REDIRECT_URI'),
     );
   }
 
@@ -42,7 +44,7 @@ export class GoogleOAuthService {
 
     const ticket = await this.client.verifyIdToken({
       idToken: tokens.id_token,
-      audience: this.config.get<string>('GOOGLE_CLIENT_ID'),
+      audience: this.clientId,
     });
     const payload = ticket.getPayload();
     if (!payload?.sub || !payload.email || !payload.email_verified) {
@@ -90,4 +92,10 @@ export class GoogleOAuthService {
       },
     });
   }
+}
+
+function requireConfig(config: ConfigService, key: string) {
+  const value = config.get<string>(key);
+  if (!value) throw new Error(`Missing required config: ${key}`);
+  return value;
 }
