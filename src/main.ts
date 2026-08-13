@@ -63,6 +63,7 @@ const requestTiming = (req: Request, res: Response, next: NextFunction) => {
 };
 
 async function bootstrap() {
+  console.log(JSON.stringify({ type: 'app.bootstrap.start' }));
   const app = await NestFactory.create(AppModule);
 
   app.use(requestTiming);
@@ -124,6 +125,7 @@ async function bootstrap() {
   const host = process.env.HOST || '0.0.0.0';
 
   await app.listen(port, host);
+  console.log(JSON.stringify({ type: 'app.listen.done', port, host }));
   console.log(`🚀 Server: http://localhost:${port}/api`);
   console.log(`📖 Swagger: http://localhost:${port}/docs`);
 }
