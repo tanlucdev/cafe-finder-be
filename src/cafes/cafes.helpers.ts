@@ -101,6 +101,7 @@ export function cafeOrderBy(sort: CafeFilterDto['sort']): any[] {
   }
 
   return [
+    { cafeVotes: { _count: 'desc' } },
     { isFeatured: 'desc' },
     { featuredOrder: { sort: 'asc', nulls: 'last' } },
     { savedCafes: { _count: 'desc' } },
