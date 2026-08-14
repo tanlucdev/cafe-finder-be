@@ -9,6 +9,7 @@ import { AdminModule } from './admin/admin.module';
 import { StorageModule } from './storage/storage.module';
 import { BlogsModule } from './blogs/blogs.module';
 import { VisitedModule } from './visited/visited.module';
+import { QuizModule } from './quiz/quiz.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -23,6 +24,7 @@ import { HealthController } from './health.controller';
     StorageModule,
     BlogsModule,
     VisitedModule,
+    QuizModule,
   ],
   controllers: [HealthController],
 })
