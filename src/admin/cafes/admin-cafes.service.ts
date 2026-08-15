@@ -7,6 +7,7 @@ import { AdminCafeFilterDto } from './dto/admin-cafe-filter.dto';
 import { CreateCafeDto } from './dto/create-cafe.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
 import { syncLocalizedArrays } from './localized-arrays';
+import { CafeRevalidateService } from './cafe-revalidate.service';
 
 type UploadedFile = Express.Multer.File;
 const MAX_CAFE_IMAGES = 12;
@@ -34,6 +35,7 @@ export class AdminCafesService {
   constructor(
     private prisma: PrismaService,
     private storage: StorageService,
+    private revalidate: CafeRevalidateService,
   ) {}
 
   async listCafes(filter: AdminCafeFilterDto) {
@@ -133,11 +135,12 @@ export class AdminCafesService {
       `;
     }
 
+    await this.revalidate.trigger();
     return cafe;
   }
 
   async updateCafe(id: string, dto: UpdateCafeDto) {
-    await this.findCafeOrThrow(id);
+    const existing = await this.findCafeOrThrow(id);
 
     const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
     const data: any = syncLocalizedArrays(normalizeFeaturedFields({ ...rest }));
@@ -162,27 +165,32 @@ export class AdminCafesService {
       `;
     }
 
+    await this.revalidate.trigger(cafe.slug || existing.slug);
     return cafe;
   }
 
   async deleteCafe(id: string) {
     await this.findCafeOrThrow(id);
-    return this.prisma.cafe.delete({ where: { id } });
+    const cafe = await this.prisma.cafe.delete({ where: { id } });
+    await this.revalidate.trigger();
+    return cafe;
   }
 
   async togglePublish(id: string) {
     const cafe = await this.findCafeOrThrow(id);
-    return this.prisma.cafe.update({
+    const updated = await this.prisma.cafe.update({
       where: { id },
       data: { isPublished: !cafe.isPublished },
     });
+    await this.revalidate.trigger(updated.slug || cafe.slug);
+    return updated;
   }
 
   async toggleFeature(id: string, featuredOrder?: number | null) {
     const cafe = await this.findCafeOrThrow(id);
     const isFeatured = !cafe.isFeatured;
 
-    return this.prisma.cafe.update({
+    const updated = await this.prisma.cafe.update({
       where: { id },
       data: {
         isFeatured,
@@ -190,6 +198,8 @@ export class AdminCafesService {
         ...(!isFeatured ? { featuredOrder: null } : {}),
       },
     });
+    await this.revalidate.trigger(updated.slug || cafe.slug);
+    return updated;
   }
 
   async uploadCafeImage(id: string, file: UploadedFile, setCover = false) {
@@ -210,6 +220,7 @@ export class AdminCafesService {
       },
     });
 
+    await this.revalidate.trigger(updated.slug || cafe.slug);
     return {
       url,
       images: updated.images,
@@ -227,6 +238,7 @@ export class AdminCafesService {
       data: { menuImage: url },
     });
 
+    await this.revalidate.trigger(updated.slug);
     return { url, menuImage: updated.menuImage };
   }
 
@@ -282,6 +294,7 @@ export class AdminCafesService {
       },
     });
 
+    await this.revalidate.trigger(updated.slug || cafe.slug);
     return {
       imported,
       failed,
@@ -306,10 +319,12 @@ export class AdminCafesService {
     );
     const coverImage = cafe.coverImage === imageUrl ? (images[0] ?? null) : cafe.coverImage;
 
-    return this.prisma.cafe.update({
+    const updated = await this.prisma.cafe.update({
       where: { id },
       data: { images, imageOrientations, coverImage },
     });
+    await this.revalidate.trigger(updated.slug || cafe.slug);
+    return updated;
   }
 
   async reorderCafeImages(id: string, imageUrls: string[]) {
@@ -335,7 +350,7 @@ export class AdminCafesService {
     );
     const imageOrientations = imageUrls.map((url) => orientationsByUrl.get(url) ?? 'unknown');
 
-    return this.prisma.cafe.update({
+    const updated = await this.prisma.cafe.update({
       where: { id },
       data: {
         images: imageUrls,
@@ -346,6 +361,8 @@ export class AdminCafesService {
             : (imageUrls[0] ?? null),
       },
     });
+    await this.revalidate.trigger(updated.slug || cafe.slug);
+    return updated;
   }
 
   private async findCafeOrThrow(id: string) {

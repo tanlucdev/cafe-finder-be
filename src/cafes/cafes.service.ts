@@ -97,22 +97,32 @@ export class CafesService {
     const [cafes, total] = await Promise.all([
       this.prisma.cafe.findMany({
         where,
-        skip: (page - 1) * limit,
-        take: limit,
         orderBy: cafeOrderBy('popular'),
         select: cafeListSelect,
       }),
       this.prisma.cafe.count({ where }),
     ]);
     const { weeklyByCafe, totalByCafe } = await this.getVoteCountMaps(cafes.map((cafe) => cafe.id));
-    const data = cafes.map((cafe) =>
-      this.serializeListCafe(
-        cafe,
-        locale,
-        weeklyByCafe.get(cafe.id) ?? 0,
-        totalByCafe.get(cafe.id) ?? 0,
-      ),
-    );
+    const data = cafes
+      .sort(
+        (a, b) =>
+          (weeklyByCafe.get(b.id) ?? 0) - (weeklyByCafe.get(a.id) ?? 0) ||
+          (totalByCafe.get(b.id) ?? 0) - (totalByCafe.get(a.id) ?? 0) ||
+          Number(b.isFeatured) - Number(a.isFeatured) ||
+          (a.featuredOrder ?? Number.MAX_SAFE_INTEGER) -
+            (b.featuredOrder ?? Number.MAX_SAFE_INTEGER) ||
+          b._count.savedCafes - a._count.savedCafes ||
+          b.createdAt.getTime() - a.createdAt.getTime(),
+      )
+      .slice((page - 1) * limit, page * limit)
+      .map((cafe) =>
+        this.serializeListCafe(
+          cafe,
+          locale,
+          weeklyByCafe.get(cafe.id) ?? 0,
+          totalByCafe.get(cafe.id) ?? 0,
+        ),
+      );
 
     return {
       data,

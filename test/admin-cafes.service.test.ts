@@ -32,11 +32,13 @@ function createService(overrides: any = {}) {
     deleteImage: async () => undefined,
     ...overrides.storage,
   };
+  const revalidate = { trigger: async () => undefined, ...overrides.revalidate };
 
   return {
-    service: new AdminCafesService(prisma as any, storage as any),
+    service: new AdminCafesService(prisma as any, storage as any, revalidate as any),
     prisma,
     storage,
+    revalidate,
   };
 }
 
