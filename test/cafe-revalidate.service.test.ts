@@ -5,10 +5,12 @@ import { CafeRevalidateService } from '../src/admin/cafes/cafe-revalidate.servic
 test('CafeRevalidateService posts cafe slug to frontend webhook', async () => {
   const calls: any[] = [];
   const originalFetch = global.fetch;
+  const originalLog = console.log;
   global.fetch = (async (url: string, init: RequestInit) => {
     calls.push([url, init]);
     return { ok: true, status: 200 } as Response;
   }) as typeof fetch;
+  console.log = () => undefined;
 
   try {
     const service = new CafeRevalidateService({
@@ -25,5 +27,6 @@ test('CafeRevalidateService posts cafe slug to frontend webhook', async () => {
     assert.equal(calls[0][1].body, JSON.stringify({ reason: 'cafe_changed', slug: 'ten-quan' }));
   } finally {
     global.fetch = originalFetch;
+    console.log = originalLog;
   }
 });

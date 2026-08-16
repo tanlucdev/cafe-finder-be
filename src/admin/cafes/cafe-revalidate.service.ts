@@ -8,7 +8,12 @@ export class CafeRevalidateService {
   async trigger(slug?: string | null) {
     const url = this.config.get<string>('FRONTEND_REVALIDATE_URL');
     const secret = this.config.get<string>('REVALIDATE_SECRET');
-    if (!url || !secret) return;
+    if (!url || !secret) {
+      console.warn(
+        'Cafe revalidate webhook skipped: missing FRONTEND_REVALIDATE_URL or REVALIDATE_SECRET',
+      );
+      return;
+    }
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
@@ -24,6 +29,13 @@ export class CafeRevalidateService {
         body: JSON.stringify({ reason: 'cafe_changed', ...(slug ? { slug } : {}) }),
       });
       if (!response.ok) throw new Error(`Revalidate failed: ${response.status}`);
+      console.log(
+        JSON.stringify({
+          type: 'cafe.revalidate.done',
+          status: response.status,
+          slug: slug ?? null,
+        }),
+      );
     } catch (error) {
       console.error('Cafe revalidate webhook failed:', error);
     } finally {
