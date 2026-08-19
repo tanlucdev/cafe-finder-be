@@ -75,16 +75,18 @@ export class CafesController {
   @ApiQuery({ name: 'vibes', required: false, example: 'Cozy,Artistic' })
   @ApiQuery({ name: 'purposes', required: false, example: 'Work,Study' })
   @ApiQuery({ name: 'tags', required: false, example: 'outdoor,smoking' })
+  @ApiQuery({ name: 'limit', required: false, type: Number, example: 36 })
   quizMatch(
     @Query('vibes') vibes: string,
     @Query('purposes') purposes: string,
     @Query('tags') tags: string,
+    @Query('limit') limit?: string,
     @Query('locale') locale?: string,
   ) {
     const vibeArr = vibes ? vibes.split(',').filter(Boolean) : [];
     const purposeArr = purposes ? purposes.split(',').filter(Boolean) : [];
     const tagArr = tags ? tags.split(',').filter(Boolean) : [];
-    return this.cafesService.quizMatch(vibeArr, purposeArr, locale, tagArr);
+    return this.cafesService.quizMatch(vibeArr, purposeArr, locale, tagArr, limit);
   }
 
   @Post(':id/vote')
