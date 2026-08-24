@@ -39,7 +39,7 @@ export class AdminCafesService {
   ) {}
 
   async listCafes(filter: AdminCafeFilterDto) {
-    const { district, is_published, is_featured, search, page = 1, limit = 20 } = filter;
+    const { district, is_published, is_featured, search, page = 1, limit = 10 } = filter;
 
     const and: any[] = [];
     if (district !== undefined) {

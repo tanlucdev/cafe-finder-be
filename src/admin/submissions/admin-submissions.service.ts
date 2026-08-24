@@ -6,16 +6,39 @@ import { PrismaService } from '../../prisma/prisma.service';
 export class AdminSubmissionsService {
   constructor(private prisma: PrismaService) {}
 
-  async listSubmissions(status?: string) {
-    return this.prisma.cafeSubmission.findMany({
-      where: status ? { status: status as any } : undefined,
-      include: {
-        submittedBy: {
-          select: { id: true, email: true, displayName: true },
+  async listSubmissions(status?: string, page: number = 1, limit: number = 10, search?: string) {
+    page = Number.isInteger(page) && page > 0 ? page : 1;
+    limit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
+    const q = search?.trim();
+    const where = {
+      isHidden: false,
+      ...(status ? { status: status as any } : {}),
+      ...(q
+        ? {
+            OR: [
+              { name: { contains: q, mode: 'insensitive' as const } },
+              { address: { contains: q, mode: 'insensitive' as const } },
+              { submittedBy: { email: { contains: q, mode: 'insensitive' as const } } },
+              { submittedBy: { displayName: { contains: q, mode: 'insensitive' as const } } },
+            ],
+          }
+        : {}),
+    };
+    const [data, total] = await Promise.all([
+      this.prisma.cafeSubmission.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        include: {
+          submittedBy: {
+            select: { id: true, email: true, displayName: true },
+          },
         },
-      },
-      orderBy: { createdAt: 'desc' },
-    });
+        orderBy: { createdAt: 'desc' },
+      }),
+      this.prisma.cafeSubmission.count({ where }),
+    ]);
+    return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
   async getSubmission(id: string) {
@@ -25,7 +48,7 @@ export class AdminSubmissionsService {
         submittedBy: { select: { id: true, email: true, displayName: true } },
       },
     });
-    if (!submission) throw new NotFoundException(`Submission not found: ${id}`);
+    if (!submission || submission.isHidden) throw new NotFoundException(`Submission not found: ${id}`);
     return submission;
   }
 
@@ -69,6 +92,19 @@ export class AdminSubmissionsService {
         status: 'rejected',
         ...(note !== undefined ? { reviewNote: reviewNote || null } : {}),
       },
+    });
+  }
+
+  async hideSubmission(id: string) {
+    const submission = await this.prisma.cafeSubmission.findUnique({
+      where: { id },
+      select: { id: true, isHidden: true },
+    });
+    if (!submission || submission.isHidden) throw new NotFoundException(`Submission not found: ${id}`);
+
+    return this.prisma.cafeSubmission.update({
+      where: { id },
+      data: { isHidden: true },
     });
   }
 }

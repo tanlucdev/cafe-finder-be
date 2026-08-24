@@ -16,8 +16,16 @@ export class AdminSubmissionsController {
   @Get()
   @ApiOperation({ summary: 'List cafe submissions' })
   @ApiQuery({ name: 'status', required: false, enum: ['pending', 'approved', 'rejected'] })
-  listSubmissions(@Query('status') status?: string) {
-    return this.adminSubmissionsService.listSubmissions(status);
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'search', required: false, type: String })
+  listSubmissions(
+    @Query('status') status?: string,
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+  ) {
+    return this.adminSubmissionsService.listSubmissions(status, +page, +limit, search);
   }
 
   @Get(':id')
@@ -36,5 +44,11 @@ export class AdminSubmissionsController {
   @ApiOperation({ summary: 'Reject submission' })
   rejectSubmission(@Param('id') id: string, @Body('note') note?: string) {
     return this.adminSubmissionsService.rejectSubmission(id, note);
+  }
+
+  @Patch(':id/hide')
+  @ApiOperation({ summary: 'Hide submission' })
+  hideSubmission(@Param('id') id: string) {
+    return this.adminSubmissionsService.hideSubmission(id);
   }
 }

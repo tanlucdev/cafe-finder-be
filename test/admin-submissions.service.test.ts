@@ -7,6 +7,7 @@ function createService(overrides: any = {}) {
   const prisma = {
     cafeSubmission: {
       findMany: async () => [],
+      count: async () => 0,
       findUnique: async () => ({
         id: 'submission-1',
         name: 'Quán Mới',
@@ -36,13 +37,14 @@ test('listSubmissions applies optional status filter', async () => {
           findManyArgs = args;
           return [];
         },
+        count: async () => 0,
       },
     },
   });
 
   await service.listSubmissions('pending');
 
-  assert.deepEqual(findManyArgs.where, { status: 'pending' });
+  assert.deepEqual(findManyArgs.where, { isHidden: false, status: 'pending' });
   assert.deepEqual(findManyArgs.include.submittedBy.select, {
     id: true,
     email: true,
@@ -56,6 +58,14 @@ test('getSubmission throws when missing', async () => {
   });
 
   await assert.rejects(() => service.getSubmission('missing'), NotFoundException);
+});
+
+test('getSubmission throws when hidden', async () => {
+  const { service } = createService({
+    prisma: { cafeSubmission: { findUnique: async () => ({ id: 'submission-1', isHidden: true }) } },
+  });
+
+  await assert.rejects(() => service.getSubmission('submission-1'), NotFoundException);
 });
 
 test('approveSubmission marks submission approved and creates unpublished draft cafe', async () => {
@@ -158,4 +168,24 @@ test('rejectSubmission stores an optional admin review note', async () => {
 
   assert.deepEqual(updateArgs.data, { status: 'rejected', reviewNote: 'Address is incomplete' });
   assert.equal(result.reviewNote, 'Address is incomplete');
+});
+
+test('hideSubmission soft hides visible submission', async () => {
+  let updateArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafeSubmission: {
+        findUnique: async () => ({ id: 'submission-1', isHidden: false }),
+        update: async (args: any) => {
+          updateArgs = args;
+          return { id: args.where.id, ...args.data };
+        },
+      },
+    },
+  });
+
+  const result = await service.hideSubmission('submission-1');
+
+  assert.deepEqual(updateArgs.data, { isHidden: true });
+  assert.equal(result.isHidden, true);
 });
