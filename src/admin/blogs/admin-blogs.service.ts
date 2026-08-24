@@ -72,7 +72,7 @@ export class AdminBlogsService {
   constructor(private prisma: PrismaService) {}
 
   async listPosts(filter: AdminBlogFilterDto) {
-    const { search, tag, is_published, is_featured, page = 1, limit = 20 } = filter;
+    const { search, tag, is_published, is_featured, page = 1, limit = 10 } = filter;
     const where: any = {
       ...(tag && { tags: { has: tag } }),
       ...(is_published !== undefined && { isPublished: is_published }),

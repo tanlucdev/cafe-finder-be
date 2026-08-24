@@ -236,3 +236,51 @@ test('findAll still returns cafes when vote table is missing', async () => {
     },
   ]);
 });
+
+test('quizMatch defaults to a 36-cafe pool and keeps quiz filters', async () => {
+  let findManyArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          findManyArgs = args;
+          return [];
+        },
+      },
+    },
+  });
+
+  await service.quizMatch(['Minimalist'], ['Work'], 'en', ['Outdoor']);
+
+  assert.equal(findManyArgs.take, 36);
+  assert.deepEqual(findManyArgs.where.AND, [
+    { OR: [{ vibes: { hasSome: ['Minimalist'] } }, { vibesEn: { hasSome: ['Minimalist'] } }] },
+    { OR: [{ purposes: { hasSome: ['Work'] } }, { purposesEn: { hasSome: ['Work'] } }] },
+    { OR: [{ tags: { hasSome: ['Outdoor'] } }, { tagsEn: { hasSome: ['Outdoor'] } }] },
+  ]);
+  assert.deepEqual(findManyArgs.orderBy, [{ isFeatured: 'desc' }, { featuredOrder: 'asc' }]);
+});
+
+test('quizMatch clamps limit between 1 and 50', async () => {
+  const calls: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          calls.push(args);
+          return [];
+        },
+      },
+    },
+  });
+
+  await service.quizMatch([], [], undefined, [], 10);
+  await service.quizMatch([], [], undefined, [], '999');
+  await service.quizMatch([], [], undefined, [], '0');
+  await service.quizMatch([], [], undefined, [], '-4');
+
+  assert.deepEqual(
+    calls.map((args) => args.take),
+    [10, 50, 1, 1],
+  );
+});

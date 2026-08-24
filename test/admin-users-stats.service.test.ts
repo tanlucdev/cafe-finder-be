@@ -56,6 +56,30 @@ test('AdminUsersService hides users but blocks self hide and last admin hide', a
   assert.equal(updates[0].data.isHidden, true);
 });
 
+test('AdminUsersService bulk hides users with admin safety checks', async () => {
+  let updateManyArgs: any;
+  const prisma = {
+    user: {
+      findMany: async ({ where }: any) =>
+        where.id.in.map((id: string) => ({ id, role: id.startsWith('admin') ? 'ADMIN' : 'USER' })),
+      count: async () => 2,
+      updateMany: async (args: any) => {
+        updateManyArgs = args;
+        return { count: args.where.id.in.length };
+      },
+    },
+    $transaction: async (fn: any) => fn(prisma),
+  };
+  const service = new AdminUsersService(prisma as any);
+
+  await assert.rejects(() => service.hideUsers([], 'admin-1'), /No users selected/);
+  await assert.rejects(() => service.hideUsers(['admin-1'], 'admin-1'), /Cannot hide yourself/);
+  await assert.rejects(() => service.hideUsers(['admin-2', 'admin-3'], 'admin-1'), /Cannot hide the last admin/);
+  assert.deepEqual(await service.hideUsers(['user-1', 'user-1', 'user-2'], 'admin-1'), { count: 2 });
+  assert.deepEqual(updateManyArgs.where, { id: { in: ['user-1', 'user-2'] }, isHidden: false });
+  assert.deepEqual(updateManyArgs.data, { isHidden: true });
+});
+
 test('AdminStatsService returns cafe, submission, and user counts', async () => {
   const countCalls: any[] = [];
   const prisma = {

@@ -1,4 +1,4 @@
-import { Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiQuery, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../../auth/decorators/current-user.decorator';
 import { Roles } from '../../common/decorators/roles.decorator';
@@ -18,13 +18,24 @@ export class AdminUsersController {
   @ApiOperation({ summary: 'List users with pagination' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
-  listUsers(@Query('page') page: number = 1, @Query('limit') limit: number = 20) {
-    return this.adminUsersService.listUsers(+page, +limit);
+  listUsers(
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 10,
+    @Query('search') search?: string,
+    @Query('role') role?: 'ADMIN' | 'USER',
+  ) {
+    return this.adminUsersService.listUsers(+page, +limit, search, role);
   }
 
   @Patch(':id/hide')
   @ApiOperation({ summary: 'Hide user' })
   hideUser(@Param('id') id: string, @CurrentUser() user: { id: string }) {
     return this.adminUsersService.hideUser(id, user.id);
+  }
+
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide users' })
+  hideUsers(@Body('ids') ids: string[], @CurrentUser() user: { id: string }) {
+    return this.adminUsersService.hideUsers(ids, user.id);
   }
 }

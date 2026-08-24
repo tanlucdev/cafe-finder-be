@@ -283,7 +283,15 @@ export class CafesService {
       .filter(Boolean);
   }
 
-  async quizMatch(vibes: string[], purposes: string[], locale?: string, tags: string[] = []) {
+  async quizMatch(
+    vibes: string[],
+    purposes: string[],
+    locale?: string,
+    tags: string[] = [],
+    limit?: string | number,
+  ) {
+    const parsedLimit = Number(limit);
+    const normalizedLimit = Math.min(50, Math.max(1, Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : 36));
     const and: any[] = [];
     if (vibes?.length) {
       and.push({ OR: [{ vibes: { hasSome: vibes } }, { vibesEn: { hasSome: vibes } }] });
@@ -302,7 +310,7 @@ export class CafesService {
         isPublished: true,
         ...(and.length && { AND: and }),
       },
-      take: 10,
+      take: normalizedLimit,
       orderBy: [{ isFeatured: 'desc' }, { featuredOrder: 'asc' }],
       select: {
         id: true,
