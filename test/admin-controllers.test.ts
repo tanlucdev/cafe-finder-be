@@ -111,9 +111,11 @@ test('admin submissions, users, and stats controllers delegate to services', asy
     getSubmission: async (id: string) => calls.push(['submissions:get', id]),
     approveSubmission: async (id: string) => calls.push(['submissions:approve', id]),
     rejectSubmission: async (id: string) => calls.push(['submissions:reject', id]),
+    hideSubmission: async (id: string) => calls.push(['submissions:hide', id]),
   } as any);
   const usersController = new AdminUsersController({
     listUsers: async (page: number, limit: number) => calls.push(['users:list', page, limit]),
+    hideUsers: async (ids: string[], actorId: string) => calls.push(['users:hideMany', ids, actorId]),
   } as any);
   const statsController = new AdminStatsController({
     getStats: async () => calls.push(['stats:get']),
@@ -123,7 +125,9 @@ test('admin submissions, users, and stats controllers delegate to services', asy
   await submissionsController.getSubmission('submission-1');
   await submissionsController.approveSubmission('submission-1');
   await submissionsController.rejectSubmission('submission-1');
+  await submissionsController.hideSubmission('submission-1');
   await usersController.listUsers(2, 10);
+  await usersController.hideUsers(['user-1'], { id: 'admin-1' } as any);
   await statsController.getStats();
 
   assert.deepEqual(calls, [
@@ -131,7 +135,9 @@ test('admin submissions, users, and stats controllers delegate to services', asy
     ['submissions:get', 'submission-1'],
     ['submissions:approve', 'submission-1'],
     ['submissions:reject', 'submission-1'],
+    ['submissions:hide', 'submission-1'],
     ['users:list', 2, 10],
+    ['users:hideMany', ['user-1'], 'admin-1'],
     ['stats:get'],
   ]);
 });
