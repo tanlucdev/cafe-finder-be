@@ -15,9 +15,10 @@ test('CafeRevalidateService posts cafe slug to frontend webhook', async () => {
   try {
     const service = new CafeRevalidateService({
       get: (key: string) =>
-        ({ FRONTEND_REVALIDATE_URL: 'https://fe.test/api/revalidate-cafes', REVALIDATE_SECRET: 's' })[
-          key
-        ],
+        ({
+          FRONTEND_REVALIDATE_URL: 'https://fe.test/api/revalidate-cafes',
+          REVALIDATE_SECRET: 's',
+        })[key],
     } as any);
 
     await service.trigger('ten-quan');

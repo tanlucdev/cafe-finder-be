@@ -1,4 +1,6 @@
+import { createHash } from 'crypto';
 import { Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 import { RouteDistanceService } from './route-distance.service';
@@ -135,9 +137,46 @@ export class CafesService {
     return {
       ...serializeLocalizedCafe(rest, locale),
       savedCount: _count.savedCafes,
+      viewCount: rest.viewCount ?? 0,
       voteCount,
       weeklyVoteCount,
     };
+  }
+
+  async trackView(cafeId: string, visitorKey: string) {
+    const cafe = await this.prisma.cafe.findFirst({
+      where: { id: cafeId, isPublished: true },
+      select: { id: true, viewCount: true },
+    });
+
+    if (!cafe) throw new NotFoundException(`Cafe not found with id: ${cafeId}`);
+
+    const bucketStart = new Date(Math.floor(Date.now() / 86_400_000) * 86_400_000);
+    const visitorKeyHash = createHash('sha256').update(visitorKey).digest('hex');
+
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        await tx.cafeViewEvent.create({
+          data: { cafeId, visitorKeyHash, bucketStart },
+        });
+        return tx.cafe.update({
+          where: { id: cafeId },
+          data: { viewCount: { increment: 1 } },
+          select: { viewCount: true },
+        });
+      });
+
+      return { viewCount: updated.viewCount, counted: true };
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+        const current = await this.prisma.cafe.findUnique({
+          where: { id: cafeId },
+          select: { viewCount: true },
+        });
+        return { viewCount: current?.viewCount ?? cafe.viewCount, counted: false };
+      }
+      throw error;
+    }
   }
 
   private async getVoteCountMaps(cafeIds: string[]) {
@@ -291,7 +330,10 @@ export class CafesService {
     limit?: string | number,
   ) {
     const parsedLimit = Number(limit);
-    const normalizedLimit = Math.min(50, Math.max(1, Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : 36));
+    const normalizedLimit = Math.min(
+      50,
+      Math.max(1, Number.isFinite(parsedLimit) ? Math.trunc(parsedLimit) : 36),
+    );
     const and: any[] = [];
     if (vibes?.length) {
       and.push({ OR: [{ vibes: { hasSome: vibes } }, { vibesEn: { hasSome: vibes } }] });

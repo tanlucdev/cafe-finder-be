@@ -62,7 +62,9 @@ test('getSubmission throws when missing', async () => {
 
 test('getSubmission throws when hidden', async () => {
   const { service } = createService({
-    prisma: { cafeSubmission: { findUnique: async () => ({ id: 'submission-1', isHidden: true }) } },
+    prisma: {
+      cafeSubmission: { findUnique: async () => ({ id: 'submission-1', isHidden: true }) },
+    },
   });
 
   await assert.rejects(() => service.getSubmission('submission-1'), NotFoundException);
