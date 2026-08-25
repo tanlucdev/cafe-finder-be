@@ -74,8 +74,13 @@ test('AdminUsersService bulk hides users with admin safety checks', async () => 
 
   await assert.rejects(() => service.hideUsers([], 'admin-1'), /No users selected/);
   await assert.rejects(() => service.hideUsers(['admin-1'], 'admin-1'), /Cannot hide yourself/);
-  await assert.rejects(() => service.hideUsers(['admin-2', 'admin-3'], 'admin-1'), /Cannot hide the last admin/);
-  assert.deepEqual(await service.hideUsers(['user-1', 'user-1', 'user-2'], 'admin-1'), { count: 2 });
+  await assert.rejects(
+    () => service.hideUsers(['admin-2', 'admin-3'], 'admin-1'),
+    /Cannot hide the last admin/,
+  );
+  assert.deepEqual(await service.hideUsers(['user-1', 'user-1', 'user-2'], 'admin-1'), {
+    count: 2,
+  });
   assert.deepEqual(updateManyArgs.where, { id: { in: ['user-1', 'user-2'] }, isHidden: false });
   assert.deepEqual(updateManyArgs.data, { isHidden: true });
 });

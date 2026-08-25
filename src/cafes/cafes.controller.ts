@@ -1,5 +1,19 @@
-import { Controller, Delete, Get, Header, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { randomUUID } from 'crypto';
+import {
+  Controller,
+  Delete,
+  Get,
+  Header,
+  Param,
+  Post,
+  Query,
+  Req,
+  Res,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { JwtService } from '@nestjs/jwt';
+import { Request, Response } from 'express';
 import { CafesService } from './cafes.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 import { CafeVotesService } from './cafe-votes.service';
@@ -12,6 +26,7 @@ export class CafesController {
   constructor(
     private readonly cafesService: CafesService,
     private readonly cafeVotesService: CafeVotesService,
+    private readonly jwtService: JwtService,
   ) {}
 
   @Get()
@@ -103,10 +118,59 @@ export class CafesController {
     return this.cafeVotesService.unvote(user.id, cafeId);
   }
 
+  @Post(':id/view')
+  @ApiOperation({ summary: 'Track a public cafe detail view' })
+  async trackView(
+    @Param('id') cafeId: string,
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const cookies = parseCookieHeader(req.headers.cookie);
+    const userVisitorKey = await this.getUserVisitorKey(req, cookies);
+    const cookieName = 'cafe-anon-id';
+    const anonId = cookies[cookieName] || randomUUID();
+
+    if (!userVisitorKey && !cookies[cookieName]) {
+      res.cookie(cookieName, anonId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        maxAge: 365 * 24 * 60 * 60 * 1000,
+        path: '/',
+      });
+    }
+
+    return this.cafesService.trackView(cafeId, userVisitorKey ?? `anon:${anonId}`);
+  }
+
+  private async getUserVisitorKey(req: Request, cookies: Record<string, string>) {
+    const bearer = req.headers.authorization?.match(/^Bearer\s+(.+)$/i)?.[1];
+    const cookieToken = cookies[process.env.JWT_COOKIE_NAME || 'cafe-auth-token'];
+    const token = bearer || cookieToken;
+    if (!token) return null;
+
+    try {
+      const payload = await this.jwtService.verifyAsync<{ sub?: string }>(token);
+      return payload.sub ? `user:${payload.sub}` : null;
+    } catch {
+      return null;
+    }
+  }
+
   @Get(':slug')
   @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
   @ApiOperation({ summary: 'Get cafe details by slug' })
   findOne(@Param('slug') slug: string, @Query('locale') locale?: string) {
     return this.cafesService.findBySlug(slug, locale);
   }
+}
+
+function parseCookieHeader(cookieHeader?: string) {
+  return Object.fromEntries(
+    (cookieHeader || '').split(';').flatMap((part) => {
+      const index = part.indexOf('=');
+      if (index < 0) return [];
+      return [[part.slice(0, index).trim(), decodeURIComponent(part.slice(index + 1).trim())]];
+    }),
+  );
 }

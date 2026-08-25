@@ -48,7 +48,8 @@ export class AdminSubmissionsService {
         submittedBy: { select: { id: true, email: true, displayName: true } },
       },
     });
-    if (!submission || submission.isHidden) throw new NotFoundException(`Submission not found: ${id}`);
+    if (!submission || submission.isHidden)
+      throw new NotFoundException(`Submission not found: ${id}`);
     return submission;
   }
 
@@ -100,7 +101,8 @@ export class AdminSubmissionsService {
       where: { id },
       select: { id: true, isHidden: true },
     });
-    if (!submission || submission.isHidden) throw new NotFoundException(`Submission not found: ${id}`);
+    if (!submission || submission.isHidden)
+      throw new NotFoundException(`Submission not found: ${id}`);
 
     return this.prisma.cafeSubmission.update({
       where: { id },

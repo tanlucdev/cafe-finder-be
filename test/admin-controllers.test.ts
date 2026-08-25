@@ -115,7 +115,8 @@ test('admin submissions, users, and stats controllers delegate to services', asy
   } as any);
   const usersController = new AdminUsersController({
     listUsers: async (page: number, limit: number) => calls.push(['users:list', page, limit]),
-    hideUsers: async (ids: string[], actorId: string) => calls.push(['users:hideMany', ids, actorId]),
+    hideUsers: async (ids: string[], actorId: string) =>
+      calls.push(['users:hideMany', ids, actorId]),
   } as any);
   const statsController = new AdminStatsController({
     getStats: async () => calls.push(['stats:get']),

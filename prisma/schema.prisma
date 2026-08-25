@@ -85,11 +85,13 @@ model Cafe {
   featuredOrder     Int?                      @map("featured_order")
   search_vector     Unsupported("tsvector")?
   isPublished       Boolean                   @default(true) @map("is_published")
+  viewCount         Int                       @default(0) @map("view_count")
   createdAt         DateTime                  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   savedCafes        SavedCafe[]
   cafeVotes         CafeVote[]
   visitedCafes      VisitedCafe[]
+  viewEvents        CafeViewEvent[]
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
@@ -102,10 +104,25 @@ model Cafe {
   @@index([location], map: "idx_cafes_location", type: Gist)
   @@index([priceMin, priceMax], map: "idx_cafes_price")
   @@index([isPublished], map: "idx_cafes_published")
+  @@index([viewCount], map: "idx_cafes_view_count")
   @@index([purposes], map: "idx_cafes_purposes", type: Gin)
   @@index([search_vector], map: "idx_cafes_search", type: Gin)
   @@index([vibes], map: "idx_cafes_vibes", type: Gin)
   @@map("cafes")
+}
+
+model CafeViewEvent {
+  id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  cafeId         String   @map("cafe_id") @db.Uuid
+  visitorKeyHash String   @map("visitor_key_hash")
+  bucketStart    DateTime @map("bucket_start") @db.Timestamptz(6)
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+
+  @@unique([cafeId, visitorKeyHash, bucketStart], map: "cafe_view_events_dedupe_key")
+  @@index([cafeId], map: "idx_cafe_view_events_cafe_id")
+  @@index([createdAt], map: "idx_cafe_view_events_created_at")
+  @@map("cafe_view_events")
 }
 
 model SavedCafe {

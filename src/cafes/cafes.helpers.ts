@@ -65,6 +65,7 @@ export const cafeListSelect = {
   rating: true,
   isFeatured: true,
   featuredOrder: true,
+  viewCount: true,
   coverImage: true,
   createdAt: true,
   updatedAt: true,
@@ -101,6 +102,7 @@ export function cafeOrderBy(sort: CafeFilterDto['sort']): any[] {
   }
 
   return [
+    { viewCount: 'desc' },
     { cafeVotes: { _count: 'desc' } },
     { isFeatured: 'desc' },
     { featuredOrder: { sort: 'asc', nulls: 'last' } },

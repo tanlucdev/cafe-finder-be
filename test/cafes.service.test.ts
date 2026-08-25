@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
+import { Prisma } from '@prisma/client';
 import { CafesService } from '../src/cafes/cafes.service';
 import { serializeLocalizedCafe } from '../src/cafes/cafe.mapper';
 
@@ -66,7 +67,7 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
   assert.deepEqual(findManyArgs.orderBy[0], { rating: { sort: 'desc', nulls: 'last' } });
   assert.equal(findManyArgs.select.rating, true);
   assert.deepEqual(result.data, [
-    { id: 'cafe-1', savedCount: 3, voteCount: 4, weeklyVoteCount: 0 },
+    { id: 'cafe-1', savedCount: 3, viewCount: 0, voteCount: 4, weeklyVoteCount: 0 },
   ]);
   assert.deepEqual(result.meta, { total: 1, page: 2, limit: 9, totalPages: 1 });
 });
@@ -197,6 +198,7 @@ test('findAll localizes cafe fields and searches both languages', async () => {
       amenities: ['Power outlets'],
       tags: ['Outdoor'],
       savedCount: 2,
+      viewCount: 0,
       voteCount: 5,
       weeklyVoteCount: 0,
     },
@@ -231,10 +233,93 @@ test('findAll still returns cafes when vote table is missing', async () => {
       id: 'cafe-1',
       createdAt: new Date('2026-01-01'),
       savedCount: 2,
+      viewCount: 0,
       voteCount: 0,
       weeklyVoteCount: 0,
     },
   ]);
+});
+
+test('trackView increments once per cafe visitor bucket', async () => {
+  let viewCount = 0;
+  const events: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findFirst: async ({ where }: any) =>
+          where.id === 'cafe-1' && where.isPublished ? { id: 'cafe-1', viewCount } : null,
+        findUnique: async () => ({ viewCount }),
+        update: async () => ({ viewCount: ++viewCount }),
+      },
+      cafeViewEvent: {
+        create: async ({ data }: any) => {
+          if (
+            events.some(
+              (event) =>
+                event.cafeId === data.cafeId &&
+                event.visitorKeyHash === data.visitorKeyHash &&
+                event.bucketStart.getTime() === data.bucketStart.getTime(),
+            )
+          ) {
+            throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+              code: 'P2002',
+              clientVersion: 'test',
+            } as any);
+          }
+          events.push(data);
+        },
+      },
+      $transaction: async (fn: any) =>
+        fn({
+          cafe: {
+            update: async () => ({ viewCount: ++viewCount }),
+          },
+          cafeViewEvent: {
+            create: async ({ data }: any) => {
+              if (
+                events.some(
+                  (event) =>
+                    event.cafeId === data.cafeId &&
+                    event.visitorKeyHash === data.visitorKeyHash &&
+                    event.bucketStart.getTime() === data.bucketStart.getTime(),
+                )
+              ) {
+                throw new Prisma.PrismaClientKnownRequestError('Unique constraint failed', {
+                  code: 'P2002',
+                  clientVersion: 'test',
+                } as any);
+              }
+              events.push(data);
+            },
+          },
+        }),
+    },
+  });
+
+  assert.deepEqual(await service.trackView('cafe-1', 'visitor-1'), {
+    viewCount: 1,
+    counted: true,
+  });
+  assert.deepEqual(await service.trackView('cafe-1', 'visitor-1'), {
+    viewCount: 1,
+    counted: false,
+  });
+  assert.deepEqual(await service.trackView('cafe-1', 'visitor-2'), {
+    viewCount: 2,
+    counted: true,
+  });
+});
+
+test('trackView returns 404 when cafe is missing or unpublished', async () => {
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findFirst: async () => null,
+      },
+    },
+  });
+
+  await assert.rejects(() => service.trackView('missing', 'visitor-1'), /Cafe not found/);
 });
 
 test('quizMatch defaults to a 36-cafe pool and keeps quiz filters', async () => {
