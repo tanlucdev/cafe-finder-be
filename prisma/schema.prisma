@@ -79,6 +79,7 @@ model Cafe {
   images            String[]
   imageOrientations String[]                  @default([]) @map("image_orientations")
   coverImage        String?                   @map("cover_image")
+  coverImageCrop    Json?                     @map("cover_image_crop")
   menuImage         String?                   @map("menu_image")
   instagramUrl      String?                   @map("instagram_url")
   isFeatured        Boolean?                  @default(false) @map("is_featured")
@@ -92,6 +93,7 @@ model Cafe {
   cafeVotes         CafeVote[]
   visitedCafes      VisitedCafe[]
   viewEvents        CafeViewEvent[]
+  feedback          Feedback[]
 
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
@@ -195,6 +197,26 @@ model CafeSubmission {
   @@map("cafe_submissions")
 }
 
+model Feedback {
+  id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  type         String
+  message      String
+  contactEmail String?        @map("contact_email")
+  pageUrl      String?        @map("page_url")
+  cafeId       String?        @map("cafe_id") @db.Uuid
+  userAgent    String?        @map("user_agent")
+  status       FeedbackStatus @default(NEW)
+  adminNote    String?        @map("admin_note")
+  createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cafe         Cafe?          @relation(fields: [cafeId], references: [id], onDelete: SetNull)
+
+  @@index([status], map: "idx_feedback_status")
+  @@index([cafeId], map: "idx_feedback_cafe_id")
+  @@index([createdAt], map: "idx_feedback_created_at")
+  @@map("feedback")
+}
+
 model BlogPost {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug           String    @unique
@@ -255,6 +277,12 @@ enum SubmissionStatus {
   pending
   approved
   rejected
+}
+
+enum FeedbackStatus {
+  NEW      @map("new")
+  REVIEWED @map("reviewed")
+  ARCHIVED @map("archived")
 }
 
 enum PriceRange {

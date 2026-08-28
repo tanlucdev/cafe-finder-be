@@ -124,6 +124,14 @@ test('UpdateCafeDto accepts cafe tags with whitelist validation', () => {
   assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
 });
 
+test('UpdateCafeDto rejects cover crop outside 0..100', () => {
+  const valid = plainToInstance(UpdateCafeDto, { coverImageCrop: { x: 0, y: 100 } });
+  const invalid = plainToInstance(UpdateCafeDto, { coverImageCrop: { x: -1, y: 101 } });
+
+  assert.deepEqual(validateSync(valid, { whitelist: true, forbidNonWhitelisted: true }), []);
+  assert.equal(validateSync(invalid, { whitelist: true, forbidNonWhitelisted: true }).length, 1);
+});
+
 test('cafe featuredOrder treats zero as optional', () => {
   const updateDto = plainToInstance(UpdateCafeDto, { featuredOrder: 0 });
   const toggleDto = plainToInstance(ToggleFeatureDto, { featuredOrder: '0' });
@@ -322,6 +330,7 @@ test('uploadCafeImage appends image and sets cover image when empty', async () =
           images: ['https://cdn.test/old.webp'],
           imageOrientations: ['landscape'],
           coverImage: null,
+          coverImageCrop: null,
         }),
         update: async ({ data }: any) => {
           updateData = data;
@@ -343,6 +352,7 @@ test('uploadCafeImage appends image and sets cover image when empty', async () =
   assert.deepEqual(updateData.images, ['https://cdn.test/old.webp', 'https://cdn.test/new.webp']);
   assert.deepEqual(updateData.imageOrientations, ['landscape', 'unknown']);
   assert.equal(result.coverImage, 'https://cdn.test/new.webp');
+  assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
 });
 
 test('uploadCafeMenuImage stores menu separately from gallery images', async () => {
@@ -387,6 +397,7 @@ test('importCafeImagesFromUrls appends imported image and sets cover image when 
           images: ['https://cdn.test/old.webp'],
           imageOrientations: ['landscape'],
           coverImage: null,
+          coverImageCrop: null,
         }),
         update: async ({ data }: any) => {
           updateData = data;
@@ -413,6 +424,7 @@ test('importCafeImagesFromUrls appends imported image and sets cover image when 
   ]);
   assert.deepEqual(updateData.imageOrientations, ['landscape', 'unknown']);
   assert.equal(updateData.coverImage, 'https://cdn.test/imported.webp');
+  assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
 });
 
 test('importCafeImagesFromUrls with cover prepends images and uses first imported as cover', async () => {
@@ -427,6 +439,7 @@ test('importCafeImagesFromUrls with cover prepends images and uses first importe
           images: ['https://cdn.test/old.webp'],
           imageOrientations: ['landscape'],
           coverImage: 'https://cdn.test/old.webp',
+          coverImageCrop: { x: 20, y: 80 },
         }),
         update: async ({ data }: any) => {
           updateData = data;
@@ -450,6 +463,7 @@ test('importCafeImagesFromUrls with cover prepends images and uses first importe
   ]);
   assert.deepEqual(updateData.imageOrientations, ['unknown', 'unknown', 'landscape']);
   assert.equal(updateData.coverImage, 'https://cdn.test/one.webp');
+  assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
 });
 
 test('importCafeImagesFromUrls keeps partial success and reports failed URLs', async () => {
@@ -539,6 +553,7 @@ test('deleteCafeImage deletes storage object and updates images, orientations, c
           images: ['https://cdn.test/a.webp', 'https://cdn.test/b.webp'],
           imageOrientations: ['landscape', 'portrait'],
           coverImage: 'https://cdn.test/a.webp',
+          coverImageCrop: { x: 30, y: 40 },
         }),
         update: async ({ data }: any) => {
           updateData = data;
@@ -559,6 +574,7 @@ test('deleteCafeImage deletes storage object and updates images, orientations, c
   assert.deepEqual(updateData.images, ['https://cdn.test/b.webp']);
   assert.deepEqual(updateData.imageOrientations, ['portrait']);
   assert.equal(updateData.coverImage, 'https://cdn.test/b.webp');
+  assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
 });
 
 test('deleteCafeImage rejects URLs that do not belong to the cafe', async () => {
@@ -580,7 +596,7 @@ test('deleteCafeImage rejects URLs that do not belong to the cafe', async () => 
   );
 });
 
-test('reorderCafeImages updates image order and keeps matching orientations', async () => {
+test('reorderCafeImages updates image order, matching orientations, and resets crop when cover changes', async () => {
   let updateData: any;
   const { service } = createService({
     prisma: {
@@ -589,7 +605,8 @@ test('reorderCafeImages updates image order and keeps matching orientations', as
           id: 'cafe-1',
           images: ['https://cdn.test/a.webp', 'https://cdn.test/b.webp', 'https://cdn.test/c.webp'],
           imageOrientations: ['landscape', 'portrait', 'unknown'],
-          coverImage: 'https://cdn.test/b.webp',
+          coverImage: 'https://cdn.test/a.webp',
+          coverImageCrop: { x: 15, y: 85 },
         }),
         update: async ({ data }: any) => {
           updateData = data;
@@ -611,8 +628,40 @@ test('reorderCafeImages updates image order and keeps matching orientations', as
     'https://cdn.test/b.webp',
   ]);
   assert.deepEqual(updateData.imageOrientations, ['unknown', 'landscape', 'portrait']);
-  assert.equal(updateData.coverImage, 'https://cdn.test/b.webp');
+  assert.equal(updateData.coverImage, 'https://cdn.test/c.webp');
+  assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
   assert.deepEqual(result, updateData);
+});
+
+test('reorderCafeImages keeps crop when first image stays cover', async () => {
+  let updateData: any;
+  const crop = { x: 15, y: 85 };
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: ['https://cdn.test/a.webp', 'https://cdn.test/b.webp', 'https://cdn.test/c.webp'],
+          imageOrientations: ['landscape', 'portrait', 'unknown'],
+          coverImage: 'https://cdn.test/a.webp',
+          coverImageCrop: crop,
+        }),
+        update: async ({ data }: any) => {
+          updateData = data;
+          return data;
+        },
+      },
+    },
+  });
+
+  await service.reorderCafeImages('cafe-1', [
+    'https://cdn.test/a.webp',
+    'https://cdn.test/c.webp',
+    'https://cdn.test/b.webp',
+  ]);
+
+  assert.equal(updateData.coverImage, 'https://cdn.test/a.webp');
+  assert.equal('coverImageCrop' in updateData, false);
 });
 
 test('reorderCafeImages rejects incomplete, foreign, or duplicate image URLs', async () => {

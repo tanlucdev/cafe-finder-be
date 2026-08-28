@@ -49,6 +49,7 @@ export class SavedService {
             tags: true,
             tagsEn: true,
             coverImage: true,
+            coverImageCrop: true,
             isFeatured: true,
           },
         },
