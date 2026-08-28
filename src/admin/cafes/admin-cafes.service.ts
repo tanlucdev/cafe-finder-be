@@ -11,6 +11,7 @@ import { CafeRevalidateService } from './cafe-revalidate.service';
 
 type UploadedFile = Express.Multer.File;
 const MAX_CAFE_IMAGES = 12;
+const DEFAULT_COVER_IMAGE_CROP = { x: 50, y: 50 };
 
 function parseTimeString(time: string | null | undefined): Date | null {
   if (!time) return null;
@@ -28,6 +29,16 @@ function normalizeFeaturedFields<
   }
 
   return data;
+}
+
+function normalizeCafeWriteData<T extends { coverImageCrop?: { x: number; y: number } | null }>(
+  data: T,
+) {
+  if (data.coverImageCrop) {
+    data.coverImageCrop = { x: data.coverImageCrop.x, y: data.coverImageCrop.y };
+  }
+
+  return syncLocalizedArrays(normalizeFeaturedFields(data as any));
 }
 
 @Injectable()
@@ -97,6 +108,7 @@ export class AdminCafesService {
           featuredOrder: true,
           isPublished: true,
           coverImage: true,
+          coverImageCrop: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -120,7 +132,7 @@ export class AdminCafesService {
 
     const cafe = await this.prisma.cafe.create({
       data: {
-        ...syncLocalizedArrays(normalizeFeaturedFields(cafeData)),
+        ...normalizeCafeWriteData(cafeData),
         slug,
         ...(openingTime !== undefined && { openingTime: parseTimeString(openingTime) }),
         ...(closingTime !== undefined && { closingTime: parseTimeString(closingTime) }),
@@ -143,7 +155,7 @@ export class AdminCafesService {
     const existing = await this.findCafeOrThrow(id);
 
     const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
-    const data: any = syncLocalizedArrays(normalizeFeaturedFields({ ...rest }));
+    const data: any = normalizeCafeWriteData({ ...rest });
 
     if (name) {
       data.name = name;
@@ -217,6 +229,7 @@ export class AdminCafesService {
         images: newImages,
         imageOrientations: newOrientations,
         coverImage: setCover ? url : (cafe.coverImage ?? url),
+        ...(setCover || !cafe.coverImage ? { coverImageCrop: DEFAULT_COVER_IMAGE_CROP } : {}),
       },
     });
 
@@ -226,6 +239,7 @@ export class AdminCafesService {
       images: updated.images,
       imageOrientations: updated.imageOrientations,
       coverImage: updated.coverImage,
+      coverImageCrop: updated.coverImageCrop,
     };
   }
 
@@ -276,6 +290,7 @@ export class AdminCafesService {
         images: cafe.images,
         imageOrientations: cafe.imageOrientations ?? [],
         coverImage: cafe.coverImage,
+        coverImageCrop: cafe.coverImageCrop,
       };
     }
 
@@ -291,6 +306,7 @@ export class AdminCafesService {
         images,
         imageOrientations,
         coverImage: setCover ? imported[0] : (cafe.coverImage ?? imported[0]),
+        ...(setCover || !cafe.coverImage ? { coverImageCrop: DEFAULT_COVER_IMAGE_CROP } : {}),
       },
     });
 
@@ -301,6 +317,7 @@ export class AdminCafesService {
       images: updated.images,
       imageOrientations: updated.imageOrientations,
       coverImage: updated.coverImage,
+      coverImageCrop: updated.coverImageCrop,
     };
   }
 
@@ -318,10 +335,16 @@ export class AdminCafesService {
       (_, index) => cafe.images[index] !== imageUrl,
     );
     const coverImage = cafe.coverImage === imageUrl ? (images[0] ?? null) : cafe.coverImage;
+    const coverChanged = coverImage !== cafe.coverImage;
 
     const updated = await this.prisma.cafe.update({
       where: { id },
-      data: { images, imageOrientations, coverImage },
+      data: {
+        images,
+        imageOrientations,
+        coverImage,
+        ...(coverChanged ? { coverImageCrop: coverImage ? DEFAULT_COVER_IMAGE_CROP : null } : {}),
+      },
     });
     await this.revalidate.trigger(updated.slug || cafe.slug);
     return updated;
@@ -350,15 +373,16 @@ export class AdminCafesService {
     );
     const imageOrientations = imageUrls.map((url) => orientationsByUrl.get(url) ?? 'unknown');
 
+    const coverImage = imageUrls[0] ?? null;
+    const coverChanged = coverImage !== cafe.coverImage;
+
     const updated = await this.prisma.cafe.update({
       where: { id },
       data: {
         images: imageUrls,
         imageOrientations,
-        coverImage:
-          cafe.coverImage && requestedUrls.has(cafe.coverImage)
-            ? cafe.coverImage
-            : (imageUrls[0] ?? null),
+        coverImage,
+        ...(coverChanged ? { coverImageCrop: coverImage ? DEFAULT_COVER_IMAGE_CROP : null } : {}),
       },
     });
     await this.revalidate.trigger(updated.slug || cafe.slug);

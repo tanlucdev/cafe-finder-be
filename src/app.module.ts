@@ -10,6 +10,7 @@ import { StorageModule } from './storage/storage.module';
 import { BlogsModule } from './blogs/blogs.module';
 import { VisitedModule } from './visited/visited.module';
 import { QuizModule } from './quiz/quiz.module';
+import { FeedbackModule } from './feedback/feedback.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -25,6 +26,7 @@ import { HealthController } from './health.controller';
     BlogsModule,
     VisitedModule,
     QuizModule,
+    FeedbackModule,
   ],
   controllers: [HealthController],
 })

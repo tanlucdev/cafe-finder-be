@@ -28,6 +28,7 @@ export interface NearbyCafeRow {
   tags: string[];
   tagsEn: string[];
   coverImage: string | null;
+  coverImageCrop?: unknown;
   lat: number;
   lng: number;
   distance_km: number | string;
@@ -67,6 +68,7 @@ export const cafeListSelect = {
   featuredOrder: true,
   viewCount: true,
   coverImage: true,
+  coverImageCrop: true,
   createdAt: true,
   updatedAt: true,
   _count: { select: { savedCafes: true } },

@@ -3,10 +3,13 @@ import {
   IsBoolean,
   IsInt,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   MaxLength,
+  Max,
   Min,
+  ValidateNested,
   ValidateIf,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
@@ -26,6 +29,20 @@ function emptyTextToNull({ value }: any) {
   if (typeof value !== 'string') return value;
   const trimmed = value.trim();
   return trimmed === '' ? null : trimmed;
+}
+
+class CafeImageCropDto {
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  x: number;
+
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0)
+  @Max(100)
+  y: number;
 }
 
 export class CreateCafeDto {
@@ -221,6 +238,13 @@ export class CreateCafeDto {
   @IsOptional()
   @IsString()
   coverImage?: string;
+
+  @ApiPropertyOptional({ example: { x: 50, y: 50 }, nullable: true })
+  @IsOptional()
+  @IsObject()
+  @ValidateNested()
+  @Type(() => CafeImageCropDto)
+  coverImageCrop?: CafeImageCropDto | null;
 
   @ApiPropertyOptional({ description: 'Dedicated cafe menu image URL' })
   @IsOptional()
