@@ -251,6 +251,12 @@ export class CreateCafeDto {
   @IsString()
   menuImage?: string | null;
 
+  @ApiPropertyOptional({ type: [String], nullable: true })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  menuImages?: string[] | null;
+
   @ApiPropertyOptional({ example: 'https://instagram.com/...' })
   @IsOptional()
   @IsString()

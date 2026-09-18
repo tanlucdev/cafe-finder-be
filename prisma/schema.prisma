@@ -26,10 +26,9 @@ model User {
   savedCollections    SavedCollection[]
   cafeVotes           CafeVote[]
   visitedCafes        VisitedCafe[]
-
+  cafeReviews         CafeReview[]
   @@map("users")
 }
-
 model PasswordResetToken {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   token     String   @unique
@@ -38,10 +37,8 @@ model PasswordResetToken {
   used      Boolean  @default(false)
   createdAt DateTime @default(now()) @map("created_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@map("password_reset_tokens")
 }
-
 model Cafe {
   id                String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   name              String
@@ -81,6 +78,7 @@ model Cafe {
   coverImage        String?                   @map("cover_image")
   coverImageCrop    Json?                     @map("cover_image_crop")
   menuImage         String?                   @map("menu_image")
+  menuImages        String[]                  @default([]) @map("menu_images")
   instagramUrl      String?                   @map("instagram_url")
   isFeatured        Boolean?                  @default(false) @map("is_featured")
   featuredOrder     Int?                      @map("featured_order")
@@ -94,7 +92,7 @@ model Cafe {
   visitedCafes      VisitedCafe[]
   viewEvents        CafeViewEvent[]
   feedback          Feedback[]
-
+  reviews           CafeReview[]
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
   @@index([tagsEn], map: "idx_cafes_tags_en", type: Gin)
@@ -112,7 +110,6 @@ model Cafe {
   @@index([vibes], map: "idx_cafes_vibes", type: Gin)
   @@map("cafes")
 }
-
 model CafeViewEvent {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   cafeId         String   @map("cafe_id") @db.Uuid
@@ -120,13 +117,11 @@ model CafeViewEvent {
   bucketStart    DateTime @map("bucket_start") @db.Timestamptz(6)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
-
   @@unique([cafeId, visitorKeyHash, bucketStart], map: "cafe_view_events_dedupe_key")
   @@index([cafeId], map: "idx_cafe_view_events_cafe_id")
   @@index([createdAt], map: "idx_cafe_view_events_created_at")
   @@map("cafe_view_events")
 }
-
 model SavedCafe {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId         String   @map("user_id") @db.Uuid
@@ -135,12 +130,10 @@ model SavedCafe {
   createdAt      DateTime @default(now()) @map("created_at")
   user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cafe           Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
-
   @@unique([userId, cafeId])
   @@index([cafeId], map: "idx_saved_cafes_cafe_id")
   @@map("saved_cafes")
 }
-
 model SavedCollection {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
@@ -148,11 +141,9 @@ model SavedCollection {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @default(now()) @updatedAt @map("updated_at")
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
   @@unique([userId, name])
   @@map("saved_collections")
 }
-
 model CafeVote {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
@@ -160,14 +151,12 @@ model CafeVote {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
-
   @@unique([userId, cafeId])
   @@index([cafeId], map: "idx_cafe_votes_cafe_id")
   @@index([createdAt], map: "idx_cafe_votes_created_at")
   @@index([cafeId, createdAt], map: "idx_cafe_votes_cafe_created_at")
   @@map("cafe_votes")
 }
-
 model VisitedCafe {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   userId    String   @map("user_id") @db.Uuid
@@ -175,12 +164,10 @@ model VisitedCafe {
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
-
   @@unique([userId, cafeId])
   @@index([cafeId], map: "idx_visited_cafes_cafe_id")
   @@map("visited_cafes")
 }
-
 model CafeSubmission {
   id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   submittedById String?          @map("submitted_by") @db.Uuid
@@ -193,10 +180,8 @@ model CafeSubmission {
   isHidden      Boolean          @default(false) @map("is_hidden")
   createdAt     DateTime         @default(now()) @map("created_at")
   submittedBy   User?            @relation(fields: [submittedById], references: [id])
-
   @@map("cafe_submissions")
 }
-
 model Feedback {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   type         String
@@ -210,13 +195,28 @@ model Feedback {
   createdAt    DateTime       @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt    DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   cafe         Cafe?          @relation(fields: [cafeId], references: [id], onDelete: SetNull)
-
   @@index([status], map: "idx_feedback_status")
   @@index([cafeId], map: "idx_feedback_cafe_id")
   @@index([createdAt], map: "idx_feedback_created_at")
   @@map("feedback")
 }
-
+model CafeReview {
+  id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  cafeId    String   @map("cafe_id") @db.Uuid
+  rating    Int?
+  content   String?
+  isHidden  Boolean  @default(false) @map("is_hidden")
+  adminNote String?  @map("admin_note")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe      Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  @@unique([userId, cafeId])
+  @@index([cafeId, isHidden, createdAt], map: "idx_cafe_reviews_cafe_visible_created")
+  @@index([userId], map: "idx_cafe_reviews_user_id")
+  @@map("cafe_reviews")
+}
 model BlogPost {
   id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   slug           String    @unique
@@ -252,13 +252,11 @@ model BlogPost {
   publishedAt    DateTime? @map("published_at") @db.Timestamptz(6)
   createdAt      DateTime  @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt      DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
-
   @@index([isPublished, publishedAt], map: "idx_blog_posts_published")
   @@index([isFeatured, featuredOrder], map: "idx_blog_posts_featured")
   @@index([tags], map: "idx_blog_posts_tags", type: Gin)
   @@map("blog_posts")
 }
-
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model spatial_ref_sys {
   srid      Int     @id
@@ -272,7 +270,6 @@ enum Role {
   USER
   ADMIN
 }
-
 enum SubmissionStatus {
   pending
   approved

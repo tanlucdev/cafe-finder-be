@@ -9,6 +9,8 @@ import compression = require('compression');
 
 type ListenError = NodeJS.ErrnoException & { port?: number | string };
 
+const DEFAULT_PORT = 3005;
+
 const normalizeOrigin = (origin?: string) => origin?.replace(/\/$/, '');
 const getHostname = (origin: string) => {
   try {
@@ -32,7 +34,7 @@ const isLocalOrigin = (origin: string) => {
 };
 
 const getPort = () => {
-  const port = Number(process.env.PORT || 3005);
+  const port = Number(process.env.PORT || DEFAULT_PORT);
 
   if (!Number.isInteger(port) || port <= 0 || port > 65535) {
     throw new Error(`Invalid PORT: ${process.env.PORT}`);
@@ -121,8 +123,8 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = getPort();
   const host = process.env.HOST || '0.0.0.0';
+  const port = getPort();
 
   await app.listen(port, host);
   console.log(JSON.stringify({ type: 'app.listen.done', port, host }));

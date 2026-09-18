@@ -251,6 +251,8 @@ export class CafesService {
         c.tags, c.tags_en AS "tagsEn",
         c.cover_image AS "coverImage",
         c.cover_image_crop AS "coverImageCrop",
+        c.menu_image AS "menuImage",
+        c.menu_images AS "menuImages",
         ST_Y(c.location::geometry) AS lat,
         ST_X(c.location::geometry) AS lng,
         ROUND(
