@@ -1,4 +1,4 @@
-import { Controller, Post, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { SubmissionsService } from './submissions.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
@@ -16,5 +16,11 @@ export class SubmissionsController {
   @ApiOperation({ summary: 'Submit a new cafe for admin review' })
   create(@CurrentUser() user: any, @Body() dto: CreateSubmissionDto) {
     return this.submissionsService.create(user.id, dto);
+  }
+
+  @Get('me')
+  @ApiOperation({ summary: 'List current user cafe submissions' })
+  getMe(@CurrentUser() user: any) {
+    return this.submissionsService.getMe(user.id);
   }
 }

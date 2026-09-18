@@ -33,6 +33,9 @@ export class AdminSubmissionsService {
           submittedBy: {
             select: { id: true, email: true, displayName: true },
           },
+          createdCafe: {
+            select: { id: true, name: true, slug: true, isPublished: true },
+          },
         },
         orderBy: { createdAt: 'desc' },
       }),
@@ -46,6 +49,7 @@ export class AdminSubmissionsService {
       where: { id },
       include: {
         submittedBy: { select: { id: true, email: true, displayName: true } },
+        createdCafe: { select: { id: true, name: true, slug: true, isPublished: true } },
       },
     });
     if (!submission || submission.isHidden)
@@ -60,15 +64,8 @@ export class AdminSubmissionsService {
     const slug = slugify(submission.name, { lower: true, locale: 'vi', strict: true });
     const reviewNote = note?.trim();
 
-    const [updatedSubmission, cafe] = await Promise.all([
-      this.prisma.cafeSubmission.update({
-        where: { id },
-        data: {
-          status: 'approved',
-          ...(note !== undefined ? { reviewNote: reviewNote || null } : {}),
-        },
-      }),
-      this.prisma.cafe.create({
+    return this.prisma.$transaction(async (tx) => {
+      const cafe = await tx.cafe.create({
         data: {
           name: submission.name,
           slug,
@@ -76,10 +73,18 @@ export class AdminSubmissionsService {
           googleMapsUrl: submission.googleMapsUrl ?? undefined,
           isPublished: false,
         },
-      }),
-    ]);
+      });
+      const updatedSubmission = await tx.cafeSubmission.update({
+        where: { id },
+        data: {
+          status: 'approved',
+          createdCafeId: cafe.id,
+          ...(note !== undefined ? { reviewNote: reviewNote || null } : {}),
+        },
+      });
 
-    return { submission: updatedSubmission, cafe };
+      return { submission: updatedSubmission, cafe };
+    });
   }
 
   async rejectSubmission(id: string, note?: string) {

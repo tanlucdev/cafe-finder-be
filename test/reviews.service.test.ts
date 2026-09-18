@@ -22,16 +22,20 @@ function createPrisma() {
         cafes.has(where.id) && where.isPublished ? { id: where.id } : null,
     },
     cafeReview: {
-      findMany: async ({ where }: any) =>
-        reviews
+      findMany: async ({ where, orderBy, skip, take }: any) => {
+        const filtered = reviews
           .filter((review) => (
             (!where.cafeId || review.cafeId === where.cafeId) &&
+            (!where.userId || review.userId === where.userId) &&
             (where.isHidden === undefined || review.isHidden === where.isHidden)
           ))
-          .map(withUser),
+          .sort((a, b) => orderBy?.createdAt === 'desc' ? +b.createdAt - +a.createdAt : 0);
+        return filtered.slice(skip ?? 0, (skip ?? 0) + (take ?? filtered.length)).map(withUser);
+      },
       count: async ({ where }: any) =>
         reviews.filter((review) => (
           (!where.cafeId || review.cafeId === where.cafeId) &&
+          (!where.userId || review.userId === where.userId) &&
           (where.isHidden === undefined || review.isHidden === where.isHidden)
         )).length,
       aggregate: async ({ where }: any) => {
@@ -114,6 +118,47 @@ test('ReviewsService excludes hidden reviews and ignores null ratings in summary
   assert.deepEqual(result.data.map((item) => item.id), ['a', 'b']);
   assert.equal(result.data[1].authorName, 'u***@example.com');
   assert.deepEqual(result.summary, { reviewCount: 2, ratingCount: 1, averageRating: 5 });
+});
+
+test('ReviewsService listMine returns current visible reviews newest first with cafe content', async () => {
+  const { prisma, reviews } = createPrisma();
+  const service = new ReviewsService(prisma as any);
+  reviews.push(
+    { id: 'old', userId: 'u1', cafeId: 'cafe-1', rating: 4, content: 'Old note', isHidden: false, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') },
+    { id: 'other-user', userId: 'u2', cafeId: 'cafe-1', rating: 5, content: 'Nope', isHidden: false, createdAt: new Date('2026-01-03'), updatedAt: new Date('2026-01-03') },
+    { id: 'hidden', userId: 'u1', cafeId: 'cafe-1', rating: 1, content: 'Hidden', isHidden: true, createdAt: new Date('2026-01-04'), updatedAt: new Date('2026-01-04') },
+    { id: 'new', userId: 'u1', cafeId: 'cafe-1', rating: null, content: 'New content', isHidden: false, createdAt: new Date('2026-01-05'), updatedAt: new Date('2026-01-05') },
+  );
+
+  const result = await service.listMine('u1');
+
+  assert.equal(result.total, 2);
+  assert.deepEqual(result.meta, { total: 2, page: 1, limit: 5, totalPages: 1 });
+  assert.deepEqual(result.data.map((item) => item.id), ['new', 'old']);
+  assert.equal(result.data[0].content, 'New content');
+  assert.deepEqual(result.data[0].cafe, { id: 'cafe-1', name: 'Cafe One', slug: 'cafe-one' });
+});
+
+test('ReviewsService listMine paginates current user reviews', async () => {
+  const { prisma, reviews } = createPrisma();
+  const service = new ReviewsService(prisma as any);
+  for (let index = 1; index <= 7; index += 1) {
+    reviews.push({
+      id: `r${index}`,
+      userId: 'u1',
+      cafeId: 'cafe-1',
+      rating: 5,
+      content: `Review ${index}`,
+      isHidden: false,
+      createdAt: new Date(`2026-01-0${index}`),
+      updatedAt: new Date(`2026-01-0${index}`),
+    });
+  }
+
+  const result = await service.listMine('u1', 2, 5);
+
+  assert.equal(result.total, 7);
+  assert.deepEqual(result.data.map((item) => item.id), ['r2', 'r1']);
 });
 
 test('ReviewsService rejects unpublished cafes', async () => {

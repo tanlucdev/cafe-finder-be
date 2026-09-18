@@ -9,7 +9,12 @@ test('AdminUsersService paginates users without selecting passwordHash', async (
     user: {
       findMany: async (args: any) => {
         findManyArgs = args;
-        return [{ id: 'user-1', email: 'user@test.dev' }];
+        return [{
+          id: 'user-1',
+          email: 'user@test.dev',
+          quizCompletedCount: 2,
+          _count: { submissions: 3, cafeReviews: 4, quizResults: 5 },
+        }];
       },
       count: async () => 12,
     },
@@ -28,6 +33,22 @@ test('AdminUsersService paginates users without selecting passwordHash', async (
     role: true,
     isHidden: true,
     createdAt: true,
+    quizCompletedCount: true,
+    _count: {
+      select: {
+        submissions: { where: { isHidden: false } },
+        cafeReviews: { where: { isHidden: false } },
+        quizResults: true,
+      },
+    },
+  });
+  assert.deepEqual(result.data[0], {
+    id: 'user-1',
+    email: 'user@test.dev',
+    quizCompletedCount: 2,
+    submissionCount: 3,
+    reviewCount: 4,
+    quizResultCount: 5,
   });
   assert.deepEqual(findManyArgs.where, { isHidden: false });
   assert.deepEqual(result.meta, { total: 12, page: 2, limit: 5, totalPages: 3 });
