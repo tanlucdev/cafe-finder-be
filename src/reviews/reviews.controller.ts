@@ -50,3 +50,23 @@ export class ReviewsController {
     return this.reviewsService.deleteMine(user.id, cafeId);
   }
 }
+
+@ApiTags('Reviews')
+@Controller('reviews')
+export class MyReviewsController {
+  constructor(private readonly reviewsService: ReviewsService) {}
+
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'List current user reviews' })
+  @ApiQuery({ name: 'page', required: false, type: Number })
+  @ApiQuery({ name: 'limit', required: false, type: Number })
+  listMine(
+    @CurrentUser() user: { id: string },
+    @Query('page') page: number = 1,
+    @Query('limit') limit: number = 5,
+  ) {
+    return this.reviewsService.listMine(user.id, +page, +limit);
+  }
+}

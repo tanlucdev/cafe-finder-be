@@ -19,6 +19,7 @@ function createService(overrides: any = {}) {
     cafe: {
       create: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
     },
+    $transaction: async (fn: any) => fn(prisma),
     ...overrides.prisma,
   };
 
@@ -49,6 +50,12 @@ test('listSubmissions applies optional status filter', async () => {
     id: true,
     email: true,
     displayName: true,
+  });
+  assert.deepEqual(findManyArgs.include.createdCafe.select, {
+    id: true,
+    name: true,
+    slug: true,
+    isPublished: true,
   });
 });
 
@@ -93,12 +100,26 @@ test('approveSubmission marks submission approved and creates unpublished draft 
           return { id: 'cafe-1', ...args.data };
         },
       },
+      $transaction: async (fn: any) => fn({
+        cafeSubmission: {
+          update: async (args: any) => {
+            submissionUpdate = args;
+            return { id: args.where.id, ...args.data };
+          },
+        },
+        cafe: {
+          create: async (args: any) => {
+            cafeCreate = args;
+            return { id: 'cafe-1', ...args.data };
+          },
+        },
+      }),
     },
   });
 
   const result = await service.approveSubmission('submission-1');
 
-  assert.deepEqual(submissionUpdate.data, { status: 'approved' });
+  assert.deepEqual(submissionUpdate.data, { status: 'approved', createdCafeId: 'cafe-1' });
   assert.equal(cafeCreate.data.slug, 'quan-moi');
   assert.equal(cafeCreate.data.isPublished, false);
   assert.equal(result.cafe.isPublished, false);
@@ -124,12 +145,27 @@ test('approveSubmission stores an optional admin review note without changing su
       cafe: {
         create: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
       },
+      $transaction: async (fn: any) => fn({
+        cafeSubmission: {
+          update: async (args: any) => {
+            submissionUpdate = args;
+            return { id: args.where.id, ...args.data };
+          },
+        },
+        cafe: {
+          create: async ({ data }: any) => ({ id: 'cafe-1', ...data }),
+        },
+      }),
     },
   });
 
   await service.approveSubmission('submission-1', '  Looks good  ');
 
-  assert.deepEqual(submissionUpdate.data, { status: 'approved', reviewNote: 'Looks good' });
+  assert.deepEqual(submissionUpdate.data, {
+    status: 'approved',
+    createdCafeId: 'cafe-1',
+    reviewNote: 'Looks good',
+  });
 });
 
 test('rejectSubmission only marks submission rejected', async () => {

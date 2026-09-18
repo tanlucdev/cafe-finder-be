@@ -1,4 +1,4 @@
-import { Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -13,8 +13,8 @@ export class QuizController {
 
   @Post('completions')
   @ApiOperation({ summary: 'Record quiz completion' })
-  recordCompletion(@CurrentUser() user: { id: string }) {
-    return this.quizService.recordCompletion(user.id);
+  recordCompletion(@CurrentUser() user: { id: string }, @Body() body?: any) {
+    return this.quizService.recordCompletion(user.id, body?.result);
   }
 
   @Get('me')

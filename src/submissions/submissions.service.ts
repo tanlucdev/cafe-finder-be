@@ -17,4 +17,24 @@ export class SubmissionsService {
       },
     });
   }
+
+  async getMe(userId: string) {
+    return this.prisma.cafeSubmission.findMany({
+      where: { submittedById: userId, isHidden: false },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        createdCafe: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            address: true,
+            district: true,
+            coverImage: true,
+            isPublished: true,
+          },
+        },
+      },
+    });
+  }
 }

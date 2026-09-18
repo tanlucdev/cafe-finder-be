@@ -31,6 +31,16 @@ const serializeReview = (review: any, userId?: string) => ({
   ...(userId ? { isMine: review.userId === userId } : {}),
 });
 
+const serializeProfileReview = (review: any) => ({
+  id: review.id,
+  cafeId: review.cafeId,
+  rating: review.rating,
+  content: review.content,
+  createdAt: review.createdAt,
+  updatedAt: review.updatedAt,
+  cafe: review.cafe,
+});
+
 @Injectable()
 export class ReviewsService {
   constructor(private prisma: PrismaService) {}
@@ -65,6 +75,39 @@ export class ReviewsService {
       include: { user: { select: { displayName: true, email: true } } },
     });
     return review ? serializeReview(review, userId) : null;
+  }
+
+  async listMine(userId: string, page: number = 1, limit: number = 5) {
+    page = pageValue(page, 1);
+    limit = pageValue(limit, 5, 20);
+    const where = { userId, isHidden: false };
+    const [data, total] = await Promise.all([
+      this.prisma.cafeReview.findMany({
+        where,
+        skip: (page - 1) * limit,
+        take: limit,
+        orderBy: { createdAt: 'desc' },
+        include: {
+          cafe: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+              address: true,
+              district: true,
+              coverImage: true,
+              isPublished: true,
+            },
+          },
+        },
+      }),
+      this.prisma.cafeReview.count({ where }),
+    ]);
+    return {
+      data: data.map(serializeProfileReview),
+      total,
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async upsert(userId: string, cafeId: string, dto: UpsertReviewDto) {

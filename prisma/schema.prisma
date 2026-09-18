@@ -27,6 +27,7 @@ model User {
   cafeVotes           CafeVote[]
   visitedCafes        VisitedCafe[]
   cafeReviews         CafeReview[]
+  quizResults         QuizResult[]
   @@map("users")
 }
 model PasswordResetToken {
@@ -93,6 +94,7 @@ model Cafe {
   viewEvents        CafeViewEvent[]
   feedback          Feedback[]
   reviews           CafeReview[]
+  createdFromSubmissions CafeSubmission[]
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
   @@index([tagsEn], map: "idx_cafes_tags_en", type: Gin)
@@ -171,6 +173,7 @@ model VisitedCafe {
 model CafeSubmission {
   id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   submittedById String?          @map("submitted_by") @db.Uuid
+  createdCafeId String?          @map("created_cafe_id") @db.Uuid
   name          String
   address       String?
   googleMapsUrl String?          @map("google_maps_url")
@@ -180,7 +183,24 @@ model CafeSubmission {
   isHidden      Boolean          @default(false) @map("is_hidden")
   createdAt     DateTime         @default(now()) @map("created_at")
   submittedBy   User?            @relation(fields: [submittedById], references: [id])
+  createdCafe   Cafe?            @relation(fields: [createdCafeId], references: [id], onDelete: SetNull)
+  @@index([createdCafeId], map: "idx_cafe_submissions_created_cafe_id")
   @@map("cafe_submissions")
+}
+model QuizResult {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  profileId    String   @map("profile_id")
+  profileTitle String   @map("profile_title")
+  variant      String?
+  score        Int?
+  dna          String?
+  chips        Json?
+  answers      Json?
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId, createdAt], map: "idx_quiz_results_user_created")
+  @@map("quiz_results")
 }
 model Feedback {
   id           String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

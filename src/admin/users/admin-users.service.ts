@@ -39,13 +39,26 @@ export class AdminUsersService {
           role: true,
           isHidden: true,
           createdAt: true,
+          quizCompletedCount: true,
+          _count: {
+            select: {
+              submissions: { where: { isHidden: false } },
+              cafeReviews: { where: { isHidden: false } },
+              quizResults: true,
+            },
+          },
         },
       }),
       this.prisma.user.count({ where }),
     ]);
 
     return {
-      data,
+      data: data.map(({ _count, ...user }) => ({
+        ...user,
+        submissionCount: _count.submissions,
+        reviewCount: _count.cafeReviews,
+        quizResultCount: _count.quizResults,
+      })),
       meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
     };
   }
