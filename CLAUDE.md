@@ -7,7 +7,7 @@ NestJS REST API cho ứng dụng tìm kiếm cafe tại TP.HCM.
 - **Auth**: JWT (passport-jwt), bcrypt, forgot/reset password qua Resend email
 - **Storage**: Supabase (ảnh)
 - **Email**: Resend (`resend` package) — cấu hình qua `RESEND_API_KEY`
-- **Port**: 3001 — global prefix `/api`, Swagger tại `/api/docs`
+- **Port**: 3005 — global prefix `/api`, Swagger tại `/api/docs`
 - **Deploy**: Render.com (xem Dockerfile)
 - **Package manager**: Yarn (`yarn`, `yarn build`, `yarn test`)
 
@@ -49,8 +49,8 @@ npx prisma db push       # Sync schema → DB (không tạo migration)
 | `GOOGLE_PLACES_API_KEY` | Optional |
 | `GOOGLE_CLIENT_ID` | Google OAuth client ID |
 | `GOOGLE_CLIENT_SECRET` | Google OAuth client secret |
-| `GOOGLE_OAUTH_REDIRECT_URI` | Backend callback URL, ví dụ `http://localhost:3001/api/auth/oauth/google/callback` |
-| `PORT` | Default `3001` |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Backend callback URL, ví dụ `http://localhost:3005/api/auth/oauth/google/callback` |
+| `PORT` | Default `3005` |
 | `FRONTEND_URL` | CORS origin (default `http://localhost:3000`) |
 | `APP_URL` | Frontend URL — dùng để tạo link reset password trong email |
 | `RESEND_API_KEY` | API key từ resend.com — dùng để gửi email |

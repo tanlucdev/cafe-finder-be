@@ -115,6 +115,12 @@ test('UpdateCafeDto accepts menuImage with whitelist validation', () => {
   assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
 });
 
+test('UpdateCafeDto accepts menuImages with whitelist validation', () => {
+  const dto = plainToInstance(UpdateCafeDto, { menuImages: ['https://cdn.test/menu-1.webp'] });
+
+  assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
+});
+
 test('UpdateCafeDto accepts cafe tags with whitelist validation', () => {
   const dto = plainToInstance(UpdateCafeDto, {
     tags: ['ngoài trời', 'view đẹp'],
@@ -218,6 +224,21 @@ test('createCafe maps Vietnamese array fields to English arrays when omitted', a
   assert.deepEqual(createdData.tagsEn, ['outdoor']);
 });
 
+test('createCafe syncs menuImages to legacy menuImage', async () => {
+  let createdData: any;
+  const { service } = createService({
+    prisma: { cafe: { create: async ({ data }: any) => (createdData = data) } },
+  });
+
+  await service.createCafe({
+    name: 'Cafe menu',
+    menuImages: [' https://cdn.test/1.webp ', '', 'https://cdn.test/2.webp'],
+  });
+
+  assert.deepEqual(createdData.menuImages, ['https://cdn.test/1.webp', 'https://cdn.test/2.webp']);
+  assert.equal(createdData.menuImage, 'https://cdn.test/1.webp');
+});
+
 test('updateCafe remaps empty localized arrays from Vietnamese fields', async () => {
   let updateArgs: any;
   const { service } = createService({
@@ -293,6 +314,26 @@ test('updateCafe keeps localized arrays in sync for CMS updates', async () => {
   assert.deepEqual(updateData.tagsEn, ['outdoor']);
 });
 
+test('updateCafe syncs legacy menuImage to menuImages', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async ({ data }: any) => (updateData = data),
+      },
+    },
+  });
+
+  await service.updateCafe('cafe-1', { menuImage: ' https://cdn.test/legacy.webp ' });
+  assert.deepEqual(updateData.menuImages, ['https://cdn.test/legacy.webp']);
+  assert.equal(updateData.menuImage, 'https://cdn.test/legacy.webp');
+
+  await service.updateCafe('cafe-1', { menuImages: [] });
+  assert.deepEqual(updateData.menuImages, []);
+  assert.equal(updateData.menuImage, null);
+});
+
 test('togglePublish and toggleFeature update the expected fields', async () => {
   const updates: any[] = [];
   const { service } = createService({
@@ -355,16 +396,22 @@ test('uploadCafeImage appends image and sets cover image when empty', async () =
   assert.deepEqual(updateData.coverImageCrop, { x: 50, y: 50 });
 });
 
-test('uploadCafeMenuImage stores menu separately from gallery images', async () => {
+test('uploadCafeMenuImage appends menu page without replacing previous pages', async () => {
   let uploadFolder = '';
   let updateData: any;
   const { service } = createService({
     prisma: {
       cafe: {
-        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        findUnique: async () => ({
+          id: 'cafe-1',
+          images: [],
+          imageOrientations: [],
+          menuImage: 'https://cdn.test/menu-1.webp',
+          menuImages: ['https://cdn.test/menu-1.webp'],
+        }),
         update: async ({ data }: any) => {
           updateData = data;
-          return { id: 'cafe-1', ...data };
+          return { id: 'cafe-1', slug: 'cafe-1', ...data };
         },
       },
     },
@@ -379,10 +426,14 @@ test('uploadCafeMenuImage stores menu separately from gallery images', async () 
   const result = await service.uploadCafeMenuImage('cafe-1', { originalname: 'menu.webp' } as any);
 
   assert.equal(uploadFolder, 'cafes/cafe-1/menu');
-  assert.deepEqual(updateData, { menuImage: 'https://cdn.test/menu.webp' });
+  assert.deepEqual(updateData, {
+    menuImage: 'https://cdn.test/menu-1.webp',
+    menuImages: ['https://cdn.test/menu-1.webp', 'https://cdn.test/menu.webp'],
+  });
   assert.deepEqual(result, {
     url: 'https://cdn.test/menu.webp',
-    menuImage: 'https://cdn.test/menu.webp',
+    menuImage: 'https://cdn.test/menu-1.webp',
+    menuImages: ['https://cdn.test/menu-1.webp', 'https://cdn.test/menu.webp'],
   });
 });
 

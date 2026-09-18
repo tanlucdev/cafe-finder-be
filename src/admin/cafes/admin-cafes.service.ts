@@ -38,7 +38,26 @@ function normalizeCafeWriteData<T extends { coverImageCrop?: { x: number; y: num
     data.coverImageCrop = { x: data.coverImageCrop.x, y: data.coverImageCrop.y };
   }
 
-  return syncLocalizedArrays(normalizeFeaturedFields(data as any));
+  return syncLocalizedArrays(normalizeFeaturedFields(normalizeMenuFields(data as any)));
+}
+
+function normalizeMenuFields<T extends { menuImage?: string | null; menuImages?: string[] | null }>(
+  data: T,
+) {
+  if (Object.prototype.hasOwnProperty.call(data, 'menuImages') && data.menuImages !== undefined) {
+    data.menuImages = normalizeMenuImages(data.menuImages);
+    data.menuImage = data.menuImages[0] ?? null;
+  } else if (Object.prototype.hasOwnProperty.call(data, 'menuImage')) {
+    const menuImage = typeof data.menuImage === 'string' ? data.menuImage.trim() : null;
+    data.menuImage = menuImage || null;
+    data.menuImages = menuImage ? [menuImage] : [];
+  }
+
+  return data;
+}
+
+function normalizeMenuImages(urls?: string[] | null) {
+  return (urls ?? []).map((url) => url.trim()).filter(Boolean);
 }
 
 @Injectable()
@@ -109,6 +128,8 @@ export class AdminCafesService {
           isPublished: true,
           coverImage: true,
           coverImageCrop: true,
+          menuImage: true,
+          menuImages: true,
           createdAt: true,
           updatedAt: true,
         },
@@ -244,16 +265,20 @@ export class AdminCafesService {
   }
 
   async uploadCafeMenuImage(id: string, file: UploadedFile) {
-    await this.findCafeOrThrow(id);
+    const cafe = await this.findCafeOrThrow(id);
     const url = await this.storage.uploadImage(file, `cafes/${id}/menu`);
+    const existingMenuImages = normalizeMenuImages(
+      cafe.menuImages?.length ? cafe.menuImages : cafe.menuImage ? [cafe.menuImage] : [],
+    );
+    const menuImages = [...existingMenuImages, url];
 
     const updated = await this.prisma.cafe.update({
       where: { id },
-      data: { menuImage: url },
+      data: { menuImage: cafe.menuImage?.trim() || menuImages[0] || null, menuImages },
     });
 
     await this.revalidate.trigger(updated.slug);
-    return { url, menuImage: updated.menuImage };
+    return { url, menuImage: updated.menuImage, menuImages: updated.menuImages };
   }
 
   async importCafeImagesFromUrls(id: string, urls: string[], setCover = false) {
