@@ -126,6 +126,7 @@ export class AdminCafesService {
           isFeatured: true,
           featuredOrder: true,
           isPublished: true,
+          viewCount: true,
           coverImage: true,
           coverImageCrop: true,
           menuImage: true,
@@ -148,7 +149,16 @@ export class AdminCafesService {
   }
 
   async createCafe(dto: CreateCafeDto) {
-    const { lat, lng, slug: dtoSlug, openingTime, closingTime, ...cafeData } = dto;
+    const {
+      lat,
+      lng,
+      slug: dtoSlug,
+      openingTime,
+      closingTime,
+      submissionType: _submissionType,
+      payload: _payload,
+      ...cafeData
+    } = dto;
     const slug = dtoSlug || slugify(dto.name, { lower: true, locale: 'vi', strict: true });
 
     const cafe = await this.prisma.cafe.create({
@@ -175,7 +185,17 @@ export class AdminCafesService {
   async updateCafe(id: string, dto: UpdateCafeDto) {
     const existing = await this.findCafeOrThrow(id);
 
-    const { lat, lng, slug: dtoSlug, name, openingTime, closingTime, ...rest } = dto;
+    const {
+      lat,
+      lng,
+      slug: dtoSlug,
+      name,
+      openingTime,
+      closingTime,
+      submissionType: _submissionType,
+      payload: _payload,
+      ...rest
+    } = dto;
     const data: any = normalizeCafeWriteData({ ...rest });
 
     if (name) {

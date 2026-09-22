@@ -1,6 +1,7 @@
 import {
   IsArray,
   IsBoolean,
+  IsIn,
   IsInt,
   IsNumber,
   IsObject,
@@ -46,6 +47,16 @@ class CafeImageCropDto {
 }
 
 export class CreateCafeDto {
+  @ApiPropertyOptional({ enum: ['community', 'owner'] })
+  @IsOptional()
+  @IsIn(['community', 'owner'])
+  submissionType?: 'community' | 'owner';
+
+  @ApiPropertyOptional({ description: 'Submission draft payload; ignored by cafe writes' })
+  @IsOptional()
+  @IsObject()
+  payload?: Record<string, unknown> | null;
+
   @ApiProperty({ example: 'The Workshop Coffee' })
   @IsString()
   @MaxLength(200)
@@ -135,6 +146,13 @@ export class CreateCafeDto {
   @IsInt()
   @Min(0)
   priceMax?: number;
+
+  @ApiPropertyOptional({ example: 1234, description: 'Cafe detail view count' })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  viewCount?: number;
 
   @ApiPropertyOptional({ example: 'Impressive industrial space' })
   @IsOptional()

@@ -46,8 +46,9 @@ const ACCEPTED_IMAGE_MIME_TYPES = new Set([
 ]);
 
 const ACCEPTED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heics|heif|heifs|avif|tiff?)$/i;
+const MAX_IMAGE_BYTES = 25 * 1024 * 1024;
 
-class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
+export class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
   isValid(file?: UploadedFile): boolean {
     if (!file) return false;
     return (
@@ -130,7 +131,7 @@ export class AdminCafesController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 25 * 1024 * 1024 }),
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_BYTES }),
           new ImageUploadFileValidator({}),
         ],
       }),
@@ -152,7 +153,7 @@ export class AdminCafesController {
     @UploadedFile(
       new ParseFilePipe({
         validators: [
-          new MaxFileSizeValidator({ maxSize: 25 * 1024 * 1024 }),
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_BYTES }),
           new ImageUploadFileValidator({}),
         ],
       }),

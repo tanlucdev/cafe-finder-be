@@ -18,7 +18,9 @@ export class AdminFeedbackService {
     limit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
     const q = search?.trim();
     const where = {
-      ...(status && status in statusMap ? { status: statusMap[status as keyof typeof statusMap] } : {}),
+      ...(status && status in statusMap
+        ? { status: statusMap[status as keyof typeof statusMap] }
+        : {}),
       ...(q
         ? {
             OR: [
@@ -41,7 +43,10 @@ export class AdminFeedbackService {
       }),
       this.prisma.feedback.count({ where }),
     ]);
-    return { data: data.map(serializeFeedback), meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: data.map(serializeFeedback),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async getFeedback(id: string) {

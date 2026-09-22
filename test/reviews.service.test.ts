@@ -24,49 +24,70 @@ function createPrisma() {
     cafeReview: {
       findMany: async ({ where, orderBy, skip, take }: any) => {
         const filtered = reviews
-          .filter((review) => (
-            (!where.cafeId || review.cafeId === where.cafeId) &&
-            (!where.userId || review.userId === where.userId) &&
-            (where.isHidden === undefined || review.isHidden === where.isHidden)
-          ))
-          .sort((a, b) => orderBy?.createdAt === 'desc' ? +b.createdAt - +a.createdAt : 0);
+          .filter(
+            (review) =>
+              (!where.cafeId || review.cafeId === where.cafeId) &&
+              (!where.userId || review.userId === where.userId) &&
+              (where.isHidden === undefined || review.isHidden === where.isHidden),
+          )
+          .sort((a, b) => (orderBy?.createdAt === 'desc' ? +b.createdAt - +a.createdAt : 0));
         return filtered.slice(skip ?? 0, (skip ?? 0) + (take ?? filtered.length)).map(withUser);
       },
       count: async ({ where }: any) =>
-        reviews.filter((review) => (
-          (!where.cafeId || review.cafeId === where.cafeId) &&
-          (!where.userId || review.userId === where.userId) &&
-          (where.isHidden === undefined || review.isHidden === where.isHidden)
-        )).length,
+        reviews.filter(
+          (review) =>
+            (!where.cafeId || review.cafeId === where.cafeId) &&
+            (!where.userId || review.userId === where.userId) &&
+            (where.isHidden === undefined || review.isHidden === where.isHidden),
+        ).length,
       aggregate: async ({ where }: any) => {
         const ratings = reviews
-          .filter((review) => review.cafeId === where.cafeId && !review.isHidden && review.rating !== null)
+          .filter(
+            (review) =>
+              review.cafeId === where.cafeId && !review.isHidden && review.rating !== null,
+          )
           .map((review) => review.rating);
         return {
           _count: { rating: ratings.length },
-          _avg: { rating: ratings.length ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length : null },
+          _avg: {
+            rating: ratings.length
+              ? ratings.reduce((sum, value) => sum + value, 0) / ratings.length
+              : null,
+          },
         };
       },
       findUnique: async ({ where }: any) => {
         const review = where.id
           ? reviews.find((item) => item.id === where.id)
-          : reviews.find((item) => (
-              item.userId === where.userId_cafeId.userId && item.cafeId === where.userId_cafeId.cafeId
-            ));
+          : reviews.find(
+              (item) =>
+                item.userId === where.userId_cafeId.userId &&
+                item.cafeId === where.userId_cafeId.cafeId,
+            );
         return review ? withUser(review) : null;
       },
       upsert: async ({ where, create, update }: any) => {
-        const index = reviews.findIndex((item) => (
-          item.userId === where.userId_cafeId.userId && item.cafeId === where.userId_cafeId.cafeId
-        ));
+        const index = reviews.findIndex(
+          (item) =>
+            item.userId === where.userId_cafeId.userId &&
+            item.cafeId === where.userId_cafeId.cafeId,
+        );
         if (index >= 0) reviews[index] = { ...reviews[index], ...update, updatedAt: new Date() };
-        else reviews.push({ id: `review-${reviews.length + 1}`, isHidden: false, createdAt: new Date(), updatedAt: new Date(), ...create });
+        else
+          reviews.push({
+            id: `review-${reviews.length + 1}`,
+            isHidden: false,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+            ...create,
+          });
         return withUser(reviews[index >= 0 ? index : reviews.length - 1]);
       },
       deleteMany: async ({ where }: any) => {
         const before = reviews.length;
         for (let index = reviews.length - 1; index >= 0; index -= 1) {
-          if (reviews[index].userId === where.userId && reviews[index].cafeId === where.cafeId) reviews.splice(index, 1);
+          if (reviews[index].userId === where.userId && reviews[index].cafeId === where.cafeId)
+            reviews.splice(index, 1);
         }
         return { count: before - reviews.length };
       },
@@ -108,14 +129,46 @@ test('ReviewsService excludes hidden reviews and ignores null ratings in summary
   const { prisma, reviews } = createPrisma();
   const service = new ReviewsService(prisma as any);
   reviews.push(
-    { id: 'a', userId: 'u1', cafeId: 'cafe-1', rating: 5, content: null, isHidden: false, createdAt: new Date(), updatedAt: new Date() },
-    { id: 'b', userId: 'u2', cafeId: 'cafe-1', rating: null, content: 'Quiet', isHidden: false, email: 'user@example.com', userName: 'user@example.com', createdAt: new Date(), updatedAt: new Date() },
-    { id: 'c', userId: 'u3', cafeId: 'cafe-1', rating: 1, content: 'Hidden', isHidden: true, createdAt: new Date(), updatedAt: new Date() },
+    {
+      id: 'a',
+      userId: 'u1',
+      cafeId: 'cafe-1',
+      rating: 5,
+      content: null,
+      isHidden: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'b',
+      userId: 'u2',
+      cafeId: 'cafe-1',
+      rating: null,
+      content: 'Quiet',
+      isHidden: false,
+      email: 'user@example.com',
+      userName: 'user@example.com',
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
+    {
+      id: 'c',
+      userId: 'u3',
+      cafeId: 'cafe-1',
+      rating: 1,
+      content: 'Hidden',
+      isHidden: true,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    },
   );
 
   const result = await service.list('cafe-1');
 
-  assert.deepEqual(result.data.map((item) => item.id), ['a', 'b']);
+  assert.deepEqual(
+    result.data.map((item) => item.id),
+    ['a', 'b'],
+  );
   assert.equal(result.data[1].authorName, 'u***@example.com');
   assert.deepEqual(result.summary, { reviewCount: 2, ratingCount: 1, averageRating: 5 });
 });
@@ -124,17 +177,56 @@ test('ReviewsService listMine returns current visible reviews newest first with 
   const { prisma, reviews } = createPrisma();
   const service = new ReviewsService(prisma as any);
   reviews.push(
-    { id: 'old', userId: 'u1', cafeId: 'cafe-1', rating: 4, content: 'Old note', isHidden: false, createdAt: new Date('2026-01-01'), updatedAt: new Date('2026-01-01') },
-    { id: 'other-user', userId: 'u2', cafeId: 'cafe-1', rating: 5, content: 'Nope', isHidden: false, createdAt: new Date('2026-01-03'), updatedAt: new Date('2026-01-03') },
-    { id: 'hidden', userId: 'u1', cafeId: 'cafe-1', rating: 1, content: 'Hidden', isHidden: true, createdAt: new Date('2026-01-04'), updatedAt: new Date('2026-01-04') },
-    { id: 'new', userId: 'u1', cafeId: 'cafe-1', rating: null, content: 'New content', isHidden: false, createdAt: new Date('2026-01-05'), updatedAt: new Date('2026-01-05') },
+    {
+      id: 'old',
+      userId: 'u1',
+      cafeId: 'cafe-1',
+      rating: 4,
+      content: 'Old note',
+      isHidden: false,
+      createdAt: new Date('2026-01-01'),
+      updatedAt: new Date('2026-01-01'),
+    },
+    {
+      id: 'other-user',
+      userId: 'u2',
+      cafeId: 'cafe-1',
+      rating: 5,
+      content: 'Nope',
+      isHidden: false,
+      createdAt: new Date('2026-01-03'),
+      updatedAt: new Date('2026-01-03'),
+    },
+    {
+      id: 'hidden',
+      userId: 'u1',
+      cafeId: 'cafe-1',
+      rating: 1,
+      content: 'Hidden',
+      isHidden: true,
+      createdAt: new Date('2026-01-04'),
+      updatedAt: new Date('2026-01-04'),
+    },
+    {
+      id: 'new',
+      userId: 'u1',
+      cafeId: 'cafe-1',
+      rating: null,
+      content: 'New content',
+      isHidden: false,
+      createdAt: new Date('2026-01-05'),
+      updatedAt: new Date('2026-01-05'),
+    },
   );
 
   const result = await service.listMine('u1');
 
   assert.equal(result.total, 2);
   assert.deepEqual(result.meta, { total: 2, page: 1, limit: 5, totalPages: 1 });
-  assert.deepEqual(result.data.map((item) => item.id), ['new', 'old']);
+  assert.deepEqual(
+    result.data.map((item) => item.id),
+    ['new', 'old'],
+  );
   assert.equal(result.data[0].content, 'New content');
   assert.deepEqual(result.data[0].cafe, { id: 'cafe-1', name: 'Cafe One', slug: 'cafe-one' });
 });
@@ -158,7 +250,10 @@ test('ReviewsService listMine paginates current user reviews', async () => {
   const result = await service.listMine('u1', 2, 5);
 
   assert.equal(result.total, 7);
-  assert.deepEqual(result.data.map((item) => item.id), ['r2', 'r1']);
+  assert.deepEqual(
+    result.data.map((item) => item.id),
+    ['r2', 'r1'],
+  );
 });
 
 test('ReviewsService rejects unpublished cafes', async () => {
@@ -172,10 +267,24 @@ test('ReviewsService rejects unpublished cafes', async () => {
 test('AdminReviewsService filters, hides, unhides, and trims note', async () => {
   const { prisma, reviews } = createPrisma();
   const service = new AdminReviewsService(prisma as any);
-  reviews.push({ id: 'a', userId: 'u1', cafeId: 'cafe-1', rating: 4, content: 'Nice', isHidden: false, email: 'admin@example.com', userName: 'admin@example.com', createdAt: new Date(), updatedAt: new Date() });
+  reviews.push({
+    id: 'a',
+    userId: 'u1',
+    cafeId: 'cafe-1',
+    rating: 4,
+    content: 'Nice',
+    isHidden: false,
+    email: 'admin@example.com',
+    userName: 'admin@example.com',
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
 
   const listed = await service.list('false', 'cafe-1', 'Nice');
-  const hidden = await service.update('a', plainToInstance(UpdateReviewDto, { isHidden: true, adminNote: '  spam  ' }));
+  const hidden = await service.update(
+    'a',
+    plainToInstance(UpdateReviewDto, { isHidden: true, adminNote: '  spam  ' }),
+  );
   const unhidden = await service.update('a', { isHidden: false });
 
   assert.equal(listed.data.length, 1);

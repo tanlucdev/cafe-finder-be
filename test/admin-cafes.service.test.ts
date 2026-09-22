@@ -4,6 +4,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { plainToInstance } from 'class-transformer';
 import { validateSync } from 'class-validator';
 import { AdminCafesService } from '../src/admin/cafes/admin-cafes.service';
+import { ImageUploadFileValidator } from '../src/admin/cafes/admin-cafes.controller';
 import { CreateCafeDto } from '../src/admin/cafes/dto/create-cafe.dto';
 import { ToggleFeatureDto } from '../src/admin/cafes/dto/toggle-feature.dto';
 import { UpdateCafeDto } from '../src/admin/cafes/dto/update-cafe.dto';
@@ -41,6 +42,14 @@ function createService(overrides: any = {}) {
     revalidate,
   };
 }
+
+test('admin image upload validator accepts HEIC and HEIF by MIME or extension', () => {
+  const validator = new ImageUploadFileValidator({});
+
+  assert.equal(validator.isValid({ originalname: 'cover.heif', mimetype: '' } as any), true);
+  assert.equal(validator.isValid({ originalname: 'cover.bin', mimetype: 'image/heic' } as any), true);
+  assert.equal(validator.isValid({ originalname: 'cover.pdf', mimetype: 'application/pdf' } as any), false);
+});
 
 test('listCafes applies admin filters and pagination', async () => {
   let findManyArgs: any;
@@ -85,6 +94,7 @@ test('listCafes applies admin filters and pagination', async () => {
   assert.equal(findManyArgs.select.amenitiesEn, true);
   assert.equal(findManyArgs.select.tags, true);
   assert.equal(findManyArgs.select.tagsEn, true);
+  assert.equal(findManyArgs.select.viewCount, true);
   assert.deepEqual(countArgs, { where: findManyArgs.where });
   assert.deepEqual(result.meta, { total: 25, page: 2, limit: 10, totalPages: 3 });
 });
@@ -128,6 +138,37 @@ test('UpdateCafeDto accepts cafe tags with whitelist validation', () => {
   });
 
   assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
+});
+
+test('Cafe DTOs accept submission metadata with whitelist validation', () => {
+  const body = {
+    name: 'Owner Cafe',
+    submissionType: 'owner',
+    payload: { ownerName: 'Anh Chu' },
+  };
+
+  assert.deepEqual(
+    validateSync(plainToInstance(CreateCafeDto, body), {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+    [],
+  );
+  assert.deepEqual(
+    validateSync(plainToInstance(UpdateCafeDto, body), {
+      whitelist: true,
+      forbidNonWhitelisted: true,
+    }),
+    [],
+  );
+});
+
+test('UpdateCafeDto accepts non-negative viewCount with whitelist validation', () => {
+  const valid = plainToInstance(UpdateCafeDto, { viewCount: 123 });
+  const invalid = plainToInstance(UpdateCafeDto, { viewCount: -1 });
+
+  assert.deepEqual(validateSync(valid, { whitelist: true, forbidNonWhitelisted: true }), []);
+  assert.equal(validateSync(invalid, { whitelist: true, forbidNonWhitelisted: true }).length, 1);
 });
 
 test('UpdateCafeDto rejects cover crop outside 0..100', () => {
@@ -195,6 +236,29 @@ test('createCafe clears featured order when cafe is not featured', async () => {
 
   assert.equal(createdData.isFeatured, false);
   assert.equal(createdData.featuredOrder, null);
+});
+
+test('createCafe strips submission metadata before Prisma write', async () => {
+  let createdData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        create: async ({ data }: any) => {
+          createdData = data;
+          return { id: 'cafe-1', ...data };
+        },
+      },
+    },
+  });
+
+  await service.createCafe({
+    name: 'Owner Cafe',
+    submissionType: 'owner',
+    payload: { ownerName: 'Anh Chu' },
+  });
+
+  assert.equal('submissionType' in createdData, false);
+  assert.equal('payload' in createdData, false);
 });
 
 test('createCafe maps Vietnamese array fields to English arrays when omitted', async () => {
@@ -312,6 +376,42 @@ test('updateCafe keeps localized arrays in sync for CMS updates', async () => {
   await service.updateCafe('cafe-1', { tags: ['ngoài trời'] });
   assert.deepEqual(updateData.tags, ['ngoài trời']);
   assert.deepEqual(updateData.tagsEn, ['outdoor']);
+});
+
+test('updateCafe persists viewCount', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async ({ data }: any) => (updateData = data),
+      },
+    },
+  });
+
+  await service.updateCafe('cafe-1', { viewCount: 42 });
+
+  assert.equal(updateData.viewCount, 42);
+});
+
+test('updateCafe strips submission metadata before Prisma write', async () => {
+  let updateData: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findUnique: async () => ({ id: 'cafe-1', images: [], imageOrientations: [] }),
+        update: async ({ data }: any) => (updateData = data),
+      },
+    },
+  });
+
+  await service.updateCafe('cafe-1', {
+    submissionType: 'owner',
+    payload: { ownerName: 'Anh Chu' },
+  });
+
+  assert.equal('submissionType' in updateData, false);
+  assert.equal('payload' in updateData, false);
 });
 
 test('updateCafe syncs legacy menuImage to menuImages', async () => {

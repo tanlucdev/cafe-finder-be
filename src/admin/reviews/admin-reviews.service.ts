@@ -35,7 +35,13 @@ const serialize = (review: any) => ({
 export class AdminReviewsService {
   constructor(private prisma: PrismaService) {}
 
-  async list(hidden?: string, cafeId?: string, search?: string, page: number = 1, limit: number = 10) {
+  async list(
+    hidden?: string,
+    cafeId?: string,
+    search?: string,
+    page: number = 1,
+    limit: number = 10,
+  ) {
     page = pageValue(page, 1);
     limit = pageValue(limit, 10, 100);
     const q = search?.trim();
@@ -67,7 +73,10 @@ export class AdminReviewsService {
       }),
       this.prisma.cafeReview.count({ where }),
     ]);
-    return { data: data.map(serialize), meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
+    return {
+      data: data.map(serialize),
+      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+    };
   }
 
   async update(id: string, dto: UpdateReviewDto) {

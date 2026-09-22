@@ -9,12 +9,14 @@ test('AdminUsersService paginates users without selecting passwordHash', async (
     user: {
       findMany: async (args: any) => {
         findManyArgs = args;
-        return [{
-          id: 'user-1',
-          email: 'user@test.dev',
-          quizCompletedCount: 2,
-          _count: { submissions: 3, cafeReviews: 4, quizResults: 5 },
-        }];
+        return [
+          {
+            id: 'user-1',
+            email: 'user@test.dev',
+            quizCompletedCount: 2,
+            _count: { submissions: 3, cafeReviews: 4, quizResults: 5 },
+          },
+        ];
       },
       count: async () => 12,
     },
