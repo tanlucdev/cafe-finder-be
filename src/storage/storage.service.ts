@@ -106,7 +106,7 @@ function isSupportedSupabaseSecret(key: string) {
   return key.startsWith('eyJ') || key.startsWith('sb_secret_');
 }
 
-function isHeicImage(file: UploadedFile) {
+export function isHeicImage(file: UploadedFile) {
   const extension = extname(file.originalname).toLowerCase();
   return (
     ['.heic', '.heif', '.heics', '.heifs'].includes(extension) ||

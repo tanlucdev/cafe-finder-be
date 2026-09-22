@@ -1,9 +1,54 @@
-import { Controller, Post, Body, UseGuards, Get } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  FileValidator,
+  Get,
+  MaxFileSizeValidator,
+  Param,
+  ParseFilePipe,
+  Patch,
+  Post,
+  UploadedFile,
+  UseGuards,
+  UseInterceptors,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiConsumes } from '@nestjs/swagger';
+import type {} from 'multer';
 import { SubmissionsService } from './submissions.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+
+type UploadedFile = Express.Multer.File;
+
+const ACCEPTED_IMAGE_MIME_TYPES = new Set([
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/heic',
+  'image/heif',
+  'image/heic-sequence',
+  'image/heif-sequence',
+  'image/avif',
+  'image/tiff',
+]);
+const ACCEPTED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heics|heif|heifs|avif|tiff?)$/i;
+const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+
+export class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
+  isValid(file?: UploadedFile): boolean {
+    if (!file) return false;
+    return (
+      ACCEPTED_IMAGE_MIME_TYPES.has(file.mimetype) ||
+      ACCEPTED_IMAGE_EXTENSIONS.test(file.originalname)
+    );
+  }
+
+  buildErrorMessage(): string {
+    return 'File must be a JPEG, PNG, WebP, HEIC, HEIF, AVIF, or TIFF image';
+  }
+}
 
 @ApiTags('Submissions')
 @Controller('submissions')
@@ -18,9 +63,67 @@ export class SubmissionsController {
     return this.submissionsService.create(user.id, dto);
   }
 
+  @Patch(':id')
+  @ApiOperation({ summary: 'Update current user cafe submission draft' })
+  update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: CreateSubmissionDto) {
+    return this.submissionsService.update(user.id, id, dto);
+  }
+
   @Get('me')
   @ApiOperation({ summary: 'List current user cafe submissions' })
   getMe(@CurrentUser() user: any) {
     return this.submissionsService.getMe(user.id);
+  }
+
+  @Post(':id/submit')
+  @ApiOperation({ summary: 'Submit current user draft for admin review' })
+  submit(@CurrentUser() user: any, @Param('id') id: string) {
+    return this.submissionsService.submit(user.id, id);
+  }
+
+  @Post(':id/images')
+  @ApiOperation({ summary: 'Upload gallery image for current user submission' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadImage(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_BYTES }),
+          new ImageUploadFileValidator({}),
+        ],
+      }),
+    )
+    file: UploadedFile,
+  ) {
+    return this.submissionsService.uploadImage(user.id, id, file, 'images');
+  }
+
+  @Post(':id/menu')
+  @ApiOperation({ summary: 'Upload menu image for current user submission' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: { type: 'object', properties: { file: { type: 'string', format: 'binary' } } },
+  })
+  @UseInterceptors(FileInterceptor('file'))
+  uploadMenuImage(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: MAX_IMAGE_BYTES }),
+          new ImageUploadFileValidator({}),
+        ],
+      }),
+    )
+    file: UploadedFile,
+  ) {
+    return this.submissionsService.uploadImage(user.id, id, file, 'menuImages');
   }
 }

@@ -1,7 +1,12 @@
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsIn, IsObject, IsString, IsOptional, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateSubmissionDto {
+  @ApiPropertyOptional({ enum: ['community', 'owner'], default: 'community' })
+  @IsOptional()
+  @IsIn(['community', 'owner'])
+  submissionType?: 'community' | 'owner';
+
   @ApiProperty({ example: 'Hidden Gem Cafe' })
   @IsString()
   @MaxLength(200)
@@ -23,4 +28,9 @@ export class CreateSubmissionDto {
   @IsString()
   @MaxLength(1000)
   note?: string;
+
+  @ApiPropertyOptional({ description: 'Cafe detail draft payload' })
+  @IsOptional()
+  @IsObject()
+  payload?: Record<string, unknown>;
 }

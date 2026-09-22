@@ -60,7 +60,8 @@ test('AdminFeedbackService filters list, updates status/note, and 404s missing d
         return [{ id: 'feedback-1', status: 'NEW' }];
       },
       count: async () => 1,
-      findUnique: async ({ where }: any) => (where.id === 'missing' ? null : { id: where.id, status: 'NEW' }),
+      findUnique: async ({ where }: any) =>
+        where.id === 'missing' ? null : { id: where.id, status: 'NEW' },
       update: async (args: any) => {
         updateArgs = args;
         return { id: args.where.id, status: args.data.status, adminNote: args.data.adminNote };

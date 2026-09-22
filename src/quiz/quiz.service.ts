@@ -65,9 +65,10 @@ function normalizeQuizResult(input: QuizResultInput) {
   if (typeof input.profileId !== 'string' || typeof input.profileTitle !== 'string') {
     throw new BadRequestException('Invalid quiz result payload');
   }
-  const score = typeof input.score === 'number' && Number.isFinite(input.score)
-    ? Math.round(input.score)
-    : undefined;
+  const score =
+    typeof input.score === 'number' && Number.isFinite(input.score)
+      ? Math.round(input.score)
+      : undefined;
   return {
     profileId: input.profileId,
     profileTitle: input.profileTitle,

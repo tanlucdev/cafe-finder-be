@@ -1,8 +1,15 @@
 import { PartialType } from '@nestjs/swagger';
-import { IsArray, IsOptional, IsString } from 'class-validator';
+import { Type } from 'class-transformer';
+import { IsArray, IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { CreateCafeDto } from './create-cafe.dto';
 
 export class UpdateCafeDto extends PartialType(CreateCafeDto) {
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  viewCount?: number;
+
   @IsOptional()
   @IsString()
   menuImage?: string | null;
