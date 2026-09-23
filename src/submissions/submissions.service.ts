@@ -165,7 +165,7 @@ export class SubmissionsService {
 
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw(
-          Prisma.sql`SELECT 1 FROM "cafe_submissions" WHERE "id" = ${id} FOR UPDATE`,
+          Prisma.sql`SELECT 1 FROM "cafe_submissions" WHERE "id" = CAST(${id} AS uuid) FOR UPDATE`,
         );
         const latest = await tx.cafeSubmission.findFirst({
           where: { id, submittedById: userId, status: 'draft', isHidden: false },

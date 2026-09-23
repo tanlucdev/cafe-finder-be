@@ -184,6 +184,7 @@ test('update preserves owner contribution payload fields', async () => {
 test('uploadImage only updates submitter-owned draft payload', async () => {
   let updateArgs: any;
   let uploadedFile: any;
+  let lockQuery: any;
   const findFirstCalls: any[] = [];
   const prisma = {
     cafeSubmission: {
@@ -198,7 +199,9 @@ test('uploadImage only updates submitter-owned draft payload', async () => {
         return { id: args.where.id, ...args.data };
       },
     },
-    $queryRaw: async () => {},
+    $queryRaw: async (query: any) => {
+      lockQuery = query;
+    },
     $transaction: async (fn: any) => fn(prisma),
   };
   const storage = {
@@ -218,6 +221,7 @@ test('uploadImage only updates submitter-owned draft payload', async () => {
 
   assert.equal(uploadedFile, heicFile);
   assert.equal(findFirstCalls[1].where.status, 'draft');
+  assert.match(lockQuery.strings.join('?'), /CAST\(\? AS uuid\)/);
   assert.deepEqual(updateArgs.data.payload.images, ['old.webp', 'new.webp']);
   assert.deepEqual(updateArgs.data.payload.imageOrientations, ['unknown']);
   assert.equal(updateArgs.data.payload.coverImage, 'new.webp');
