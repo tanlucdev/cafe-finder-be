@@ -47,8 +47,14 @@ test('admin image upload validator accepts HEIC and HEIF by MIME or extension', 
   const validator = new ImageUploadFileValidator({});
 
   assert.equal(validator.isValid({ originalname: 'cover.heif', mimetype: '' } as any), true);
-  assert.equal(validator.isValid({ originalname: 'cover.bin', mimetype: 'image/heic' } as any), true);
-  assert.equal(validator.isValid({ originalname: 'cover.pdf', mimetype: 'application/pdf' } as any), false);
+  assert.equal(
+    validator.isValid({ originalname: 'cover.bin', mimetype: 'image/heic' } as any),
+    true,
+  );
+  assert.equal(
+    validator.isValid({ originalname: 'cover.pdf', mimetype: 'application/pdf' } as any),
+    false,
+  );
 });
 
 test('listCafes applies admin filters and pagination', async () => {

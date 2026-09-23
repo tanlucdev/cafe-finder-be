@@ -14,6 +14,7 @@ import { promisify } from 'util';
 const DEFAULT_TARGET_KB = 2048;
 const MAX_SOURCE_BYTES = 25 * 1024 * 1024;
 const REMOTE_IMAGE_TIMEOUT_MS = 15_000;
+const CLOUDINARY_UPLOAD_TIMEOUT_MS = 30_000;
 const DEFAULT_MAX_QUALITY = 92;
 const DEFAULT_MIN_QUALITY = 84;
 const WEBP_OPTIONS = {
@@ -26,9 +27,14 @@ const SIPS_PATH = '/usr/bin/sips';
 const run = promisify(execFile);
 type UploadedFile = Express.Multer.File;
 type ImageStorageProvider = 'supabase' | 'cloudinary';
+type ImageUploadMode = 'optimized' | 'cloudinary_original';
 
 export function getImageStorageProvider(value?: string): ImageStorageProvider {
   return value === 'cloudinary' ? 'cloudinary' : 'supabase';
+}
+
+export function getImageUploadMode(value?: string): ImageUploadMode {
+  return value === 'cloudinary_original' ? 'cloudinary_original' : 'optimized';
 }
 
 export function signCloudinaryParams(params: Record<string, string>, apiSecret: string) {
@@ -66,6 +72,23 @@ export function cloudinaryPublicIdFromUrl(imageUrl: string, cloudName?: string):
     return publicPath.replace(/\.[^/.]+$/, '') || null;
   } catch {
     return null;
+  }
+}
+
+export function cloudinaryOptimizedUrl(imageUrl: string) {
+  try {
+    const url = new URL(imageUrl);
+    const marker = '/image/upload/';
+    const markerIndex = url.pathname.indexOf(marker);
+    if (url.hostname !== 'res.cloudinary.com' || markerIndex === -1) return imageUrl;
+
+    const afterUpload = url.pathname.slice(markerIndex + marker.length);
+    if (afterUpload.startsWith('f_auto,q_auto/')) return imageUrl;
+
+    url.pathname = `${url.pathname.slice(0, markerIndex + marker.length)}f_auto,q_auto/${afterUpload}`;
+    return url.toString();
+  } catch {
+    return imageUrl;
   }
 }
 
@@ -145,6 +168,7 @@ function safePublicIdBaseName(name: string) {
 @Injectable()
 export class StorageService {
   private readonly provider: ImageStorageProvider;
+  private readonly uploadMode: ImageUploadMode;
   private readonly supabaseUrl: string;
   private readonly supabaseKey: string;
   private readonly bucket: string;
@@ -156,6 +180,7 @@ export class StorageService {
 
   constructor(private config: ConfigService) {
     this.provider = getImageStorageProvider(config.get('IMAGE_STORAGE_PROVIDER'));
+    this.uploadMode = getImageUploadMode(config.get('IMAGE_UPLOAD_MODE'));
     this.supabaseUrl = config.get('SUPABASE_URL', '');
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
@@ -393,31 +418,65 @@ export class StorageService {
       throw new InternalServerErrorException('Cloudinary is not configured');
     }
 
-    let webpBuffer: Buffer;
-    try {
-      webpBuffer = await this.convertToBestWebp(file);
-    } catch (error) {
-      throw new InternalServerErrorException(
-        `Image conversion failed: ${(error as Error).message}`,
-      );
+    const startedAt = Date.now();
+    let uploadBuffer = file.buffer;
+    let contentType = file.mimetype || 'application/octet-stream';
+    let extension = extname(file.originalname).toLowerCase() || '.jpg';
+
+    if (this.uploadMode !== 'cloudinary_original') {
+      const convertStartedAt = Date.now();
+      try {
+        uploadBuffer = await this.convertToBestWebp(file);
+        contentType = 'image/webp';
+        extension = '.webp';
+      } catch (error) {
+        throw new InternalServerErrorException(
+          `Image conversion failed: ${(error as Error).message}`,
+        );
+      } finally {
+        console.log(`cloudinary_upload_phase=convert ms=${Date.now() - convertStartedAt}`);
+      }
     }
 
     const timestamp = String(Math.floor(Date.now() / 1000));
     const publicId = `${timestamp}-${safePublicIdBaseName(file.originalname)}`;
     const signedParams = { folder, public_id: publicId, timestamp };
     const body = new FormData();
-    body.set('file', new Blob([webpBuffer as any], { type: 'image/webp' }), `${publicId}.webp`);
+    body.set(
+      'file',
+      new Blob([uploadBuffer as any], { type: contentType }),
+      `${publicId}${extension}`,
+    );
     body.set('api_key', this.cloudinaryApiKey);
     body.set('folder', folder);
     body.set('public_id', publicId);
     body.set('timestamp', timestamp);
     body.set('signature', signCloudinaryParams(signedParams, this.cloudinaryApiSecret));
 
-    const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${this.cloudinaryCloudName}/image/upload`,
-      { method: 'POST', body },
-    );
-    const raw = await response.text();
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), CLOUDINARY_UPLOAD_TIMEOUT_MS);
+    let response: Response;
+    let raw: string;
+    const uploadStartedAt = Date.now();
+    try {
+      response = await fetch(
+        `https://api.cloudinary.com/v1_1/${this.cloudinaryCloudName}/image/upload`,
+        { method: 'POST', body, signal: controller.signal },
+      );
+      raw = await response.text();
+    } catch (error) {
+      const message =
+        error instanceof Error && error.name === 'AbortError'
+          ? 'Cloudinary upload timed out'
+          : (error as Error).message;
+      throw new InternalServerErrorException(message);
+    } finally {
+      clearTimeout(timeout);
+      console.log(`cloudinary_upload_phase=upload ms=${Date.now() - uploadStartedAt}`);
+      console.log(
+        `cloudinary_upload_phase=total mode=${this.uploadMode} bytes=${uploadBuffer.byteLength} ms=${Date.now() - startedAt}`,
+      );
+    }
 
     let parsed: { secure_url?: string; error?: { message?: string } } = {};
     try {

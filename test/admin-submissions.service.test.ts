@@ -105,7 +105,9 @@ test('getSubmission throws when hidden', async () => {
 test('getSubmission throws when draft', async () => {
   const { service } = createService({
     prisma: {
-      cafeSubmission: { findUnique: async () => ({ id: 'submission-1', isHidden: false, status: 'draft' }) },
+      cafeSubmission: {
+        findUnique: async () => ({ id: 'submission-1', isHidden: false, status: 'draft' }),
+      },
     },
   });
 
@@ -474,7 +476,12 @@ test('rejectSubmission only marks submission rejected', async () => {
   const { service } = createService({
     prisma: {
       cafeSubmission: {
-        findUnique: async () => ({ id: 'submission-1', name: 'Quán Mới', status: 'pending', isHidden: false }),
+        findUnique: async () => ({
+          id: 'submission-1',
+          name: 'Quán Mới',
+          status: 'pending',
+          isHidden: false,
+        }),
         update: async (args: any) => {
           updateArgs = args;
           return { id: args.where.id, ...args.data };
@@ -494,7 +501,12 @@ test('rejectSubmission stores an optional admin review note', async () => {
   const { service } = createService({
     prisma: {
       cafeSubmission: {
-        findUnique: async () => ({ id: 'submission-1', name: 'Quán Mới', status: 'pending', isHidden: false }),
+        findUnique: async () => ({
+          id: 'submission-1',
+          name: 'Quán Mới',
+          status: 'pending',
+          isHidden: false,
+        }),
         update: async (args: any) => {
           updateArgs = args;
           return { id: args.where.id, ...args.data };

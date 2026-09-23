@@ -44,6 +44,7 @@ npx prisma db push       # Sync schema → DB (không tạo migration)
 | `SUPABASE_SERVICE_KEY` | Service role key từ Supabase Settings → API |
 | `SUPABASE_BUCKET` | Tên bucket (default `cafe-images`) |
 | `IMAGE_MAX_OUTPUT_KB` | Trần dung lượng ảnh WebP sau convert (default `2048`) |
+| `IMAGE_UPLOAD_MODE` | `cloudinary_original` để Cloudinary upload ảnh gốc, bỏ convert trong request |
 | `IMAGE_WEBP_MAX_QUALITY` | Quality WebP bắt đầu thử (default `92`) |
 | `IMAGE_WEBP_MIN_QUALITY` | Quality WebP thấp nhất được phép thử (default `84`) |
 | `GOOGLE_PLACES_API_KEY` | Optional |

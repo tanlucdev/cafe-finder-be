@@ -91,7 +91,10 @@ function buildCommunityCafeDraftData(submission: any) {
       slug: slugify(submission.name, { lower: true, locale: 'vi', strict: true }),
       address: submission.address ?? undefined,
       googleMapsUrl: submission.googleMapsUrl ?? undefined,
-      description: typeof submission.note === 'string' && submission.note.trim() ? submission.note.trim() : undefined,
+      description:
+        typeof submission.note === 'string' && submission.note.trim()
+          ? submission.note.trim()
+          : undefined,
       vibes: [],
       purposes: [],
       amenities: [],
