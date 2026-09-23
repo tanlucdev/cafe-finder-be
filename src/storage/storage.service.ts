@@ -27,14 +27,9 @@ const SIPS_PATH = '/usr/bin/sips';
 const run = promisify(execFile);
 type UploadedFile = Express.Multer.File;
 type ImageStorageProvider = 'supabase' | 'cloudinary';
-type ImageUploadMode = 'optimized' | 'cloudinary_original';
 
 export function getImageStorageProvider(value?: string): ImageStorageProvider {
   return value === 'cloudinary' ? 'cloudinary' : 'supabase';
-}
-
-export function getImageUploadMode(value?: string): ImageUploadMode {
-  return value === 'cloudinary_original' ? 'cloudinary_original' : 'optimized';
 }
 
 export function signCloudinaryParams(params: Record<string, string>, apiSecret: string) {
@@ -168,7 +163,6 @@ function safePublicIdBaseName(name: string) {
 @Injectable()
 export class StorageService {
   private readonly provider: ImageStorageProvider;
-  private readonly uploadMode: ImageUploadMode;
   private readonly supabaseUrl: string;
   private readonly supabaseKey: string;
   private readonly bucket: string;
@@ -180,7 +174,6 @@ export class StorageService {
 
   constructor(private config: ConfigService) {
     this.provider = getImageStorageProvider(config.get('IMAGE_STORAGE_PROVIDER'));
-    this.uploadMode = getImageUploadMode(config.get('IMAGE_UPLOAD_MODE'));
     this.supabaseUrl = config.get('SUPABASE_URL', '');
     this.supabaseKey = config.get('SUPABASE_SERVICE_KEY', '');
     this.bucket = config.get('SUPABASE_BUCKET', 'cafe-images');
@@ -423,19 +416,17 @@ export class StorageService {
     let contentType = file.mimetype || 'application/octet-stream';
     let extension = extname(file.originalname).toLowerCase() || '.jpg';
 
-    if (this.uploadMode !== 'cloudinary_original') {
-      const convertStartedAt = Date.now();
-      try {
-        uploadBuffer = await this.convertToBestWebp(file);
-        contentType = 'image/webp';
-        extension = '.webp';
-      } catch (error) {
-        throw new InternalServerErrorException(
-          `Image conversion failed: ${(error as Error).message}`,
-        );
-      } finally {
-        console.log(`cloudinary_upload_phase=convert ms=${Date.now() - convertStartedAt}`);
-      }
+    const convertStartedAt = Date.now();
+    try {
+      uploadBuffer = await this.convertToBestWebp(file);
+      contentType = 'image/webp';
+      extension = '.webp';
+    } catch (error) {
+      throw new InternalServerErrorException(
+        `Image conversion failed: ${(error as Error).message}`,
+      );
+    } finally {
+      console.log(`cloudinary_upload_phase=convert ms=${Date.now() - convertStartedAt}`);
     }
 
     const timestamp = String(Math.floor(Date.now() / 1000));
@@ -474,7 +465,7 @@ export class StorageService {
       clearTimeout(timeout);
       console.log(`cloudinary_upload_phase=upload ms=${Date.now() - uploadStartedAt}`);
       console.log(
-        `cloudinary_upload_phase=total mode=${this.uploadMode} bytes=${uploadBuffer.byteLength} ms=${Date.now() - startedAt}`,
+        `cloudinary_upload_phase=total mode=optimized bytes=${uploadBuffer.byteLength} ms=${Date.now() - startedAt}`,
       );
     }
 

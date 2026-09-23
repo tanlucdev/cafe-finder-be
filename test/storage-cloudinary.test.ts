@@ -3,7 +3,6 @@ import * as assert from 'node:assert/strict';
 import {
   cloudinaryOptimizedUrl,
   cloudinaryPublicIdFromUrl,
-  getImageUploadMode,
   getImageStorageProvider,
   signCloudinaryParams,
 } from '../src/storage/storage.service';
@@ -26,11 +25,6 @@ test('image storage provider defaults to supabase', () => {
   assert.equal(getImageStorageProvider('cloudinary'), 'cloudinary');
 });
 
-test('image upload mode defaults to optimized', () => {
-  assert.equal(getImageUploadMode(undefined), 'optimized');
-  assert.equal(getImageUploadMode('cloudinary_original'), 'cloudinary_original');
-});
-
 test('cloudinary optimized URL injects delivery transforms', () => {
   assert.equal(
     cloudinaryOptimizedUrl('https://res.cloudinary.com/demo/image/upload/v1/cafes/a.jpg'),
@@ -38,13 +32,12 @@ test('cloudinary optimized URL injects delivery transforms', () => {
   );
 });
 
-test('cloudinary original upload returns raw secure URL and skips sharp conversion', async () => {
+test('cloudinary uploads always convert to WebP', async () => {
   const originalFetch = global.fetch;
   const service = new StorageService({
     get: (key: string, fallback = '') =>
       ({
         IMAGE_STORAGE_PROVIDER: 'cloudinary',
-        IMAGE_UPLOAD_MODE: 'cloudinary_original',
         CLOUDINARY_CLOUD_NAME: 'demo',
         CLOUDINARY_API_KEY: 'key',
         CLOUDINARY_API_SECRET: 'secret',
@@ -53,12 +46,12 @@ test('cloudinary original upload returns raw secure URL and skips sharp conversi
   let converted = false;
   (service as any).convertToBestWebp = async () => {
     converted = true;
-    throw new Error('should not convert');
+    return Buffer.from('webp');
   };
   global.fetch = (async () =>
     new Response(
       JSON.stringify({
-        secure_url: 'https://res.cloudinary.com/demo/image/upload/v1/cafes/original.jpg',
+        secure_url: 'https://res.cloudinary.com/demo/image/upload/v1/cafes/original.webp',
       }),
       {
         status: 200,
@@ -70,8 +63,8 @@ test('cloudinary original upload returns raw secure URL and skips sharp conversi
       { originalname: 'original.jpg', mimetype: 'image/jpeg', buffer: Buffer.from('jpg') } as any,
       'cafes',
     );
-    assert.equal(converted, false);
-    assert.equal(url, 'https://res.cloudinary.com/demo/image/upload/v1/cafes/original.jpg');
+    assert.equal(converted, true);
+    assert.equal(url, 'https://res.cloudinary.com/demo/image/upload/v1/cafes/original.webp');
   } finally {
     global.fetch = originalFetch;
   }
