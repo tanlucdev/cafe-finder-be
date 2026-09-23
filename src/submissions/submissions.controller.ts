@@ -116,6 +116,7 @@ export class SubmissionsController {
     )
     file: UploadedFile,
   ) {
+    console.warn(JSON.stringify({ type: 'submission.multipart.deprecated', endpoint: 'images' }));
     return this.submissionsService.uploadImage(user.id, id, file, 'images');
   }
 
@@ -134,6 +135,9 @@ export class SubmissionsController {
     @Param('id') id: string,
     @UploadedFiles() files: UploadedFile[],
   ) {
+    console.warn(
+      JSON.stringify({ type: 'submission.multipart.deprecated', endpoint: 'images.batch' }),
+    );
     validateBatchFiles(files);
     return this.submissionsService.uploadImages(user.id, id, files, 'images');
   }
@@ -158,6 +162,7 @@ export class SubmissionsController {
     )
     file: UploadedFile,
   ) {
+    console.warn(JSON.stringify({ type: 'submission.multipart.deprecated', endpoint: 'menu' }));
     return this.submissionsService.uploadImage(user.id, id, file, 'menuImages');
   }
 
@@ -176,6 +181,9 @@ export class SubmissionsController {
     @Param('id') id: string,
     @UploadedFiles() files: UploadedFile[],
   ) {
+    console.warn(
+      JSON.stringify({ type: 'submission.multipart.deprecated', endpoint: 'menu.batch' }),
+    );
     validateBatchFiles(files);
     return this.submissionsService.uploadImages(user.id, id, files, 'menuImages');
   }
