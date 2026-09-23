@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   FileValidator,
@@ -9,10 +10,11 @@ import {
   Patch,
   Post,
   UploadedFile,
+  UploadedFiles,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileInterceptor, FilesInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiConsumes } from '@nestjs/swagger';
 import type {} from 'multer';
 import { SubmissionsService } from './submissions.service';
@@ -35,6 +37,8 @@ const ACCEPTED_IMAGE_MIME_TYPES = new Set([
 ]);
 const ACCEPTED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heics|heif|heifs|avif|tiff?)$/i;
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
+const MAX_BATCH_BYTES = 40 * 1024 * 1024;
+const MAX_BATCH_IMAGES = 12;
 
 export class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
   isValid(file?: UploadedFile): boolean {
@@ -47,6 +51,17 @@ export class ImageUploadFileValidator extends FileValidator<Record<string, never
 
   buildErrorMessage(): string {
     return 'File must be a JPEG, PNG, WebP, HEIC, HEIF, AVIF, or TIFF image';
+  }
+}
+
+export function validateBatchFiles(files: UploadedFile[]) {
+  const validator = new ImageUploadFileValidator({});
+  if (!files.length) throw new BadRequestException('At least one file is required');
+  if (files.reduce((total, file) => total + file.size, 0) > MAX_BATCH_BYTES)
+    throw new BadRequestException('Batch is too large');
+  for (const file of files) {
+    if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException('File is too large');
+    if (!validator.isValid(file)) throw new BadRequestException(validator.buildErrorMessage());
   }
 }
 
@@ -104,6 +119,25 @@ export class SubmissionsController {
     return this.submissionsService.uploadImage(user.id, id, file, 'images');
   }
 
+  @Post(':id/images/batch')
+  @ApiOperation({ summary: 'Upload gallery images for current user submission' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { files: { type: 'array', items: { type: 'string', format: 'binary' } } },
+    },
+  })
+  @UseInterceptors(FilesInterceptor('files', MAX_BATCH_IMAGES))
+  uploadImages(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @UploadedFiles() files: UploadedFile[],
+  ) {
+    validateBatchFiles(files);
+    return this.submissionsService.uploadImages(user.id, id, files, 'images');
+  }
+
   @Post(':id/menu')
   @ApiOperation({ summary: 'Upload menu image for current user submission' })
   @ApiConsumes('multipart/form-data')
@@ -125,5 +159,24 @@ export class SubmissionsController {
     file: UploadedFile,
   ) {
     return this.submissionsService.uploadImage(user.id, id, file, 'menuImages');
+  }
+
+  @Post(':id/menu/batch')
+  @ApiOperation({ summary: 'Upload menu images for current user submission' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: { files: { type: 'array', items: { type: 'string', format: 'binary' } } },
+    },
+  })
+  @UseInterceptors(FilesInterceptor('files', MAX_BATCH_IMAGES))
+  uploadMenuImages(
+    @CurrentUser() user: any,
+    @Param('id') id: string,
+    @UploadedFiles() files: UploadedFile[],
+  ) {
+    validateBatchFiles(files);
+    return this.submissionsService.uploadImages(user.id, id, files, 'menuImages');
   }
 }
