@@ -19,7 +19,8 @@ import { ApiTags, ApiOperation, ApiBearerAuth, ApiBody, ApiConsumes } from '@nes
 import type {} from 'multer';
 import { SubmissionsService } from './submissions.service';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
-import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { CreateCommunitySubmissionDto } from './dto/create-community-submission.dto';
+import { JwtAuthGuard, OptionalJwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 type UploadedFile = Express.Multer.File;
@@ -39,6 +40,7 @@ const ACCEPTED_IMAGE_EXTENSIONS = /\.(jpe?g|png|webp|heic|heics|heif|heifs|avif|
 const MAX_IMAGE_BYTES = 20 * 1024 * 1024;
 const MAX_BATCH_BYTES = 40 * 1024 * 1024;
 const MAX_BATCH_IMAGES = 12;
+const MAX_COMMUNITY_IMAGES = 8;
 
 export class ImageUploadFileValidator extends FileValidator<Record<string, never>> {
   isValid(file?: UploadedFile): boolean {
@@ -65,38 +67,84 @@ export function validateBatchFiles(files: UploadedFile[]) {
   }
 }
 
+export function validateCommunityFiles(files: UploadedFile[]) {
+  const validator = new ImageUploadFileValidator({});
+  if (files.length > MAX_COMMUNITY_IMAGES)
+    throw new BadRequestException(`At most ${MAX_COMMUNITY_IMAGES} images are allowed`);
+  if (files.reduce((total, file) => total + file.size, 0) > MAX_BATCH_BYTES)
+    throw new BadRequestException('Batch is too large');
+  for (const file of files) {
+    if (file.size > MAX_IMAGE_BYTES) throw new BadRequestException('File is too large');
+    if (!validator.isValid(file)) throw new BadRequestException(validator.buildErrorMessage());
+  }
+}
+
 @ApiTags('Submissions')
 @Controller('submissions')
-@UseGuards(JwtAuthGuard)
 @ApiBearerAuth()
 export class SubmissionsController {
   constructor(private readonly submissionsService: SubmissionsService) {}
 
+  @Post('community')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiOperation({ summary: 'Submit a community cafe with optional images' })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['name', 'googleMapsUrl'],
+      properties: {
+        name: { type: 'string' },
+        googleMapsUrl: { type: 'string' },
+        note: { type: 'string' },
+        photos: { type: 'array', items: { type: 'string', format: 'binary' } },
+      },
+    },
+  })
+  @UseInterceptors(
+    FilesInterceptor('photos', MAX_COMMUNITY_IMAGES, {
+      limits: { files: MAX_COMMUNITY_IMAGES, fileSize: MAX_IMAGE_BYTES },
+    }),
+  )
+  createCommunity(
+    @CurrentUser() user: { id: string } | null,
+    @Body() dto: CreateCommunitySubmissionDto,
+    @UploadedFiles() files: UploadedFile[] = [],
+  ) {
+    validateCommunityFiles(files);
+    return this.submissionsService.createCommunity(user?.id, dto, files);
+  }
+
   @Post()
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Submit a new cafe for admin review' })
   create(@CurrentUser() user: any, @Body() dto: CreateSubmissionDto) {
     return this.submissionsService.create(user.id, dto);
   }
 
   @Patch(':id')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Update current user cafe submission draft' })
   update(@CurrentUser() user: any, @Param('id') id: string, @Body() dto: CreateSubmissionDto) {
     return this.submissionsService.update(user.id, id, dto);
   }
 
   @Get('me')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'List current user cafe submissions' })
   getMe(@CurrentUser() user: any) {
     return this.submissionsService.getMe(user.id);
   }
 
   @Post(':id/submit')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Submit current user draft for admin review' })
   submit(@CurrentUser() user: any, @Param('id') id: string) {
     return this.submissionsService.submit(user.id, id);
   }
 
   @Post(':id/images')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upload gallery image for current user submission' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -121,6 +169,7 @@ export class SubmissionsController {
   }
 
   @Post(':id/images/batch')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upload gallery images for current user submission' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -143,6 +192,7 @@ export class SubmissionsController {
   }
 
   @Post(':id/menu')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upload menu image for current user submission' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({
@@ -167,6 +217,7 @@ export class SubmissionsController {
   }
 
   @Post(':id/menu/batch')
+  @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Upload menu images for current user submission' })
   @ApiConsumes('multipart/form-data')
   @ApiBody({

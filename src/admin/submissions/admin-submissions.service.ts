@@ -83,6 +83,8 @@ function buildOwnerCafeDraftData(submission: any) {
 }
 
 function buildCommunityCafeDraftData(submission: any) {
+  const payload = payloadObject(submission.payload);
+  const images = stringArray(payload, 'images');
   return {
     lat: undefined,
     lng: undefined,
@@ -99,8 +101,10 @@ function buildCommunityCafeDraftData(submission: any) {
       purposes: [],
       amenities: [],
       tags: [],
-      images: [],
-      imageOrientations: [],
+      images,
+      imageOrientations: stringArray(payload, 'imageOrientations'),
+      coverImage: images[0],
+      coverImageCrop: cropValue(payload, images.length > 0),
       menuImages: [],
       isPublished: false,
     },
