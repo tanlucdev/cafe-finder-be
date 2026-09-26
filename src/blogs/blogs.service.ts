@@ -11,6 +11,7 @@ export class BlogsService {
     const { locale, search, tag, page = 1, limit = 12 } = query;
     const where: any = {
       isPublished: true,
+      isHidden: false,
       ...(tag && { tags: { has: tag } }),
       ...(search && {
         OR: [
@@ -47,7 +48,7 @@ export class BlogsService {
 
   async getPostBySlug(slug: string, locale?: string) {
     const post = await this.prisma.blogPost.findUnique({
-      where: { slug, isPublished: true },
+      where: { slug, isPublished: true, isHidden: false },
     });
 
     if (!post) {
@@ -59,7 +60,7 @@ export class BlogsService {
 
   async getRelatedPosts(slug: string, locale?: string, limit = 2) {
     const post = await this.prisma.blogPost.findUnique({
-      where: { slug, isPublished: true },
+      where: { slug, isPublished: true, isHidden: false },
       select: { id: true, tags: true },
     });
 
@@ -70,6 +71,7 @@ export class BlogsService {
     const related = await this.prisma.blogPost.findMany({
       where: {
         isPublished: true,
+        isHidden: false,
         id: { not: post.id },
         ...(post.tags.length ? { tags: { hasSome: post.tags } } : {}),
       },
@@ -89,6 +91,7 @@ export class BlogsService {
     const fallback = await this.prisma.blogPost.findMany({
       where: {
         isPublished: true,
+        isHidden: false,
         id: { notIn: [post.id, ...related.map((item) => item.id)] },
       },
       take: limit - related.length,

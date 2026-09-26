@@ -19,6 +19,7 @@ import { AdminBlogFilterDto } from './dto/admin-blog-filter.dto';
 import { CreateBlogPostDto } from './dto/create-blog-post.dto';
 import { ToggleBlogFeatureDto } from './dto/toggle-blog-feature.dto';
 import { UpdateBlogPostDto } from './dto/update-blog-post.dto';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 @ApiTags('Admin Blogs')
 @Controller('admin/blogs')
@@ -44,6 +45,12 @@ export class AdminBlogsController {
   @ApiOperation({ summary: 'Create a blog post' })
   createPost(@Body() dto: CreateBlogPostDto) {
     return this.adminBlogsService.createPost(dto);
+  }
+
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide blog posts' })
+  hidePosts(@Body() dto: BulkHideDto) {
+    return this.adminBlogsService.hidePosts(dto.ids);
   }
 
   @Patch(':id')

@@ -75,8 +75,6 @@ export class GoogleOAuthService {
         where: { id: user.id },
         data: {
           googleSub: user.googleSub ?? data.googleSub,
-          displayName: user.displayName ?? data.displayName,
-          avatarUrl: user.avatarUrl ?? data.avatarUrl,
         },
       });
     }
@@ -86,6 +84,7 @@ export class GoogleOAuthService {
         email: data.email,
         passwordHash: null,
         googleSub: data.googleSub,
+        registrationMethod: 'GOOGLE',
         displayName: data.displayName,
         avatarUrl: data.avatarUrl,
         role: 'USER',

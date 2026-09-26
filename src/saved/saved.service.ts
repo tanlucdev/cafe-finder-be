@@ -22,7 +22,7 @@ export class SavedService {
 
   async getSaved(userId: string, locale?: string) {
     const saved = await this.prisma.savedCafe.findMany({
-      where: { userId },
+      where: { userId, cafe: { isPublished: true, isHidden: false } },
       include: {
         cafe: {
           select: {
@@ -64,7 +64,9 @@ export class SavedService {
   }
 
   async save(userId: string, dto: SaveCafeDto) {
-    const cafe = await this.prisma.cafe.findUnique({ where: { id: dto.cafeId } });
+    const cafe = await this.prisma.cafe.findFirst({
+      where: { id: dto.cafeId, isPublished: true, isHidden: false },
+    });
     if (!cafe) {
       throw new NotFoundException('Cafe not found');
     }

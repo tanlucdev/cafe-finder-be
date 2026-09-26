@@ -5,6 +5,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { AdminReviewsService } from './admin-reviews.service';
 import { UpdateReviewDto } from './dto/update-review.dto';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 @ApiTags('Admin Reviews')
 @Controller('admin/reviews')
@@ -31,9 +32,16 @@ export class AdminReviewsController {
     return this.adminReviewsService.list(hidden, cafeId, search, +page, +limit);
   }
 
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide reviews' })
+  hide(@Body() dto: BulkHideDto) {
+    return this.adminReviewsService.hideReviews(dto.ids);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Hide/unhide a review and update admin note' })
   update(@Param('id') id: string, @Body() dto: UpdateReviewDto) {
     return this.adminReviewsService.update(id, dto);
   }
+
 }

@@ -35,6 +35,31 @@ test('AuthService rejects hidden users on login', async () => {
   });
 });
 
+test('AuthService registers email accounts with an immutable EMAIL origin', async () => {
+  let createArgs: any;
+  const service = new AuthService(
+    {
+      user: {
+        findUnique: async () => null,
+        create: async (args: any) => {
+          createArgs = args;
+          return { id: 'user-1', email: 'new@test.dev', role: 'USER' };
+        },
+      },
+    } as any,
+    { sign: () => 'token' } as any,
+    {} as any,
+  );
+
+  await service.register({
+    email: 'new@test.dev',
+    password: 'password123',
+    displayName: 'New User',
+  });
+
+  assert.equal(createArgs.data.registrationMethod, 'EMAIL');
+});
+
 test('AuthService rejects passwordless users on password login', async () => {
   const service = new AuthService(
     {

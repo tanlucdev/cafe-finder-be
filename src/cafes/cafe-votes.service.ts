@@ -28,7 +28,7 @@ export class CafeVotesService {
 
   async vote(userId: string, cafeId: string) {
     const cafe = await this.prisma.cafe.findFirst({
-      where: { id: cafeId, isPublished: true },
+      where: { id: cafeId, isPublished: true, isHidden: false },
       select: { id: true },
     });
     if (!cafe) throw new NotFoundException('Cafe not found');
@@ -50,7 +50,7 @@ export class CafeVotesService {
 
   async unvote(userId: string, cafeId: string) {
     const cafe = await this.prisma.cafe.findFirst({
-      where: { id: cafeId, isPublished: true },
+      where: { id: cafeId, isPublished: true, isHidden: false },
       select: { id: true },
     });
     if (!cafe) throw new NotFoundException('Cafe not found');
@@ -68,7 +68,7 @@ export class CafeVotesService {
 
   async getMyVotes(userId: string) {
     const votes = await this.prisma.cafeVote.findMany({
-      where: { userId },
+      where: { userId, cafe: { isPublished: true, isHidden: false } },
       select: { cafeId: true },
       orderBy: { createdAt: 'desc' },
     });

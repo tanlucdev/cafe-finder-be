@@ -56,6 +56,7 @@ export class VisitedService {
       JOIN cafes c ON c.id = v.cafe_id
       WHERE v.user_id = ${userId}::uuid
         AND c.is_published = true
+        AND c.is_hidden = false
         AND c.location IS NOT NULL
       ORDER BY v.created_at DESC
     `;
@@ -76,6 +77,7 @@ export class VisitedService {
         FROM cafes
         WHERE id = ${cafeId}::uuid
           AND is_published = true
+          AND is_hidden = false
       ),
       inserted AS (
         INSERT INTO visited_cafes (user_id, cafe_id)

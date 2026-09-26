@@ -4,6 +4,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminSubmissionsService } from './admin-submissions.service';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 @ApiTags('Admin Submissions')
 @Controller('admin/submissions')
@@ -50,5 +51,11 @@ export class AdminSubmissionsController {
   @ApiOperation({ summary: 'Hide submission' })
   hideSubmission(@Param('id') id: string) {
     return this.adminSubmissionsService.hideSubmission(id);
+  }
+
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide submissions' })
+  hideSubmissions(@Body() dto: BulkHideDto) {
+    return this.adminSubmissionsService.hideSubmissions(dto.ids);
   }
 }

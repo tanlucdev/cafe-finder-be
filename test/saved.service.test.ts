@@ -16,7 +16,7 @@ function createService(overrides: any = {}) {
       updateMany: async () => ({ count: 1 }),
     },
     cafe: {
-      findUnique: async () => ({ id: 'cafe-1' }),
+      findFirst: async () => ({ id: 'cafe-1' }),
     },
     $transaction: async (arg: any) => (Array.isArray(arg) ? Promise.all(arg) : arg(prisma)),
     ...overrides.prisma,
@@ -41,6 +41,26 @@ test('getCollections merges empty folders and folders used by saved cafes', asyn
     { name: 'Dates', createdAt: new Date('2026-01-01') },
     { name: 'Work' },
   ]);
+});
+
+test('saved cafes only expose visible published cafes', async () => {
+  let where: any;
+  const { service } = createService({
+    prisma: {
+      savedCafe: {
+        findMany: async (args: any) => {
+          where = args.where;
+          return [];
+        },
+      },
+    },
+  });
+
+  await service.getSaved('user-1');
+  assert.deepEqual(where, {
+    userId: 'user-1',
+    cafe: { isPublished: true, isHidden: false },
+  });
 });
 
 test('deleteCollection clears saved cafes then removes empty folder', async () => {

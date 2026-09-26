@@ -4,6 +4,8 @@ import * as assert from 'node:assert/strict';
 import { PATH_METADATA } from '@nestjs/common/constants';
 import { AdminBlogsController } from '../src/admin/blogs/admin-blogs.controller';
 import { AdminCafesController } from '../src/admin/cafes/admin-cafes.controller';
+import { AdminFeedbackController } from '../src/admin/feedback/admin-feedback.controller';
+import { AdminReviewsController } from '../src/admin/reviews/admin-reviews.controller';
 import { AdminStatsController } from '../src/admin/stats/admin-stats.controller';
 import { AdminSubmissionsController } from '../src/admin/submissions/admin-submissions.controller';
 import { AdminUsersController } from '../src/admin/users/admin-users.controller';
@@ -14,6 +16,18 @@ test('admin controllers expose admin route boundaries', () => {
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminSubmissionsController), 'admin/submissions');
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminUsersController), 'admin/users');
   assert.equal(Reflect.getMetadata(PATH_METADATA, AdminStatsController), 'admin/stats');
+});
+
+test('static bulk-hide routes register before dynamic patch routes', () => {
+  const assertHideFirst = (controller: Function, hideMethod: string, dynamicMethod: string) => {
+    const methods = Object.getOwnPropertyNames(controller.prototype);
+    assert.ok(methods.indexOf(hideMethod) < methods.indexOf(dynamicMethod));
+  };
+
+  assertHideFirst(AdminBlogsController, 'hidePosts', 'updatePost');
+  assertHideFirst(AdminCafesController, 'hideCafes', 'updateCafe');
+  assertHideFirst(AdminFeedbackController, 'hideFeedback', 'updateFeedback');
+  assertHideFirst(AdminReviewsController, 'hide', 'update');
 });
 
 test('AdminCafesController delegates cafe actions to service', async () => {

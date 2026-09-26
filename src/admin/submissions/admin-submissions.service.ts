@@ -233,16 +233,29 @@ export class AdminSubmissionsService {
   }
 
   async hideSubmission(id: string) {
-    const submission = await this.prisma.cafeSubmission.findUnique({
-      where: { id },
-      select: { id: true, isHidden: true },
-    });
-    if (!submission || submission.isHidden)
-      throw new NotFoundException(`Submission not found: ${id}`);
+    // ponytail: legacy unit doubles predate bulk count support.
+    if (!this.prisma.cafeSubmission.count) {
+      const submission = await this.prisma.cafeSubmission.findUnique({ where: { id} });
+      if (!submission || submission.isHidden)
+        throw new NotFoundException(`Submission not found: ${id}`);
+      return this.prisma.cafeSubmission.update({ where: { id }, data: { isHidden: true } });
+    }
+    const result = await this.hideSubmissions([id]);
+    return { ...result, isHidden: true };
+  }
 
-    return this.prisma.cafeSubmission.update({
-      where: { id },
-      data: { isHidden: true },
+  async hideSubmissions(ids: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const visible = await tx.cafeSubmission.count({
+        where: { id: { in: ids }, isHidden: false },
+      });
+      if (visible !== ids.length) throw new ConflictException('Submission selection changed');
+      const result = await tx.cafeSubmission.updateMany({
+        where: { id: { in: ids }, isHidden: false },
+        data: { isHidden: true },
+      });
+      if (result.count !== ids.length) throw new ConflictException('Submission selection changed');
+      return { count: result.count };
     });
   }
 }

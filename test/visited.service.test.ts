@@ -80,3 +80,20 @@ test('get visited returns cafe entries for FE map', async () => {
   assert.equal(entry.cafe.lat, 10.1);
   assert.equal(entry.visitedAt.toISOString(), '2026-07-12T00:00:00.000Z');
 });
+
+test('visited queries exclude hidden cafes', async () => {
+  const queries: string[] = [];
+  const prisma = {
+    visitedCafe: { deleteMany: async () => ({ count: 0 }) },
+    $queryRaw: async (strings: TemplateStringsArray) => {
+      queries.push(strings.join(''));
+      return strings.join('').includes('WITH cafe AS') ? [{ cafeId: 'cafe-1' }] : [];
+    },
+  };
+  const service = new VisitedService(prisma as any);
+
+  await service.getVisited('user-1');
+  await service.mark('user-1', 'cafe-1');
+
+  assert.ok(queries.every((query) => query.includes('is_hidden = false')));
+});

@@ -1,4 +1,4 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
@@ -15,7 +15,7 @@ export class AdminStatsController {
 
   @Get()
   @ApiOperation({ summary: 'Dashboard stats' })
-  getStats() {
-    return this.adminStatsService.getStats();
+  getStats(@Query('date') date?: string) {
+    return this.adminStatsService.getStats(date);
   }
 }

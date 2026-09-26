@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
 
@@ -18,6 +18,7 @@ export class AdminFeedbackService {
     limit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
     const q = search?.trim();
     const where = {
+      isHidden: false,
       ...(status && status in statusMap
         ? { status: statusMap[status as keyof typeof statusMap] }
         : {}),
@@ -54,7 +55,7 @@ export class AdminFeedbackService {
       where: { id },
       include: { cafe: { select: { id: true, name: true, slug: true } } },
     });
-    if (!feedback) throw new NotFoundException(`Feedback not found: ${id}`);
+    if (!feedback || feedback.isHidden) throw new NotFoundException(`Feedback not found: ${id}`);
     return serializeFeedback(feedback);
   }
 
@@ -69,5 +70,18 @@ export class AdminFeedbackService {
       include: { cafe: { select: { id: true, name: true, slug: true } } },
     });
     return serializeFeedback(feedback);
+  }
+
+  async hideFeedback(ids: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const visible = await tx.feedback.count({ where: { id: { in: ids }, isHidden: false } });
+      if (visible !== ids.length) throw new ConflictException('Feedback selection changed');
+      const result = await tx.feedback.updateMany({
+        where: { id: { in: ids }, isHidden: false },
+        data: { isHidden: true },
+      });
+      if (result.count !== ids.length) throw new ConflictException('Feedback selection changed');
+      return { count: result.count };
+    });
   }
 }

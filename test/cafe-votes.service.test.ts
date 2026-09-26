@@ -96,6 +96,28 @@ test('missing or unpublished cafe fails', async () => {
   await assert.rejects(() => service.vote('user-1', 'cafe-1'), /Cafe not found/);
 });
 
+test('vote and unvote only accept visible cafes', async () => {
+  const calls: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findFirst: async ({ where }: any) => {
+          calls.push(where);
+          return { id: where.id };
+        },
+      },
+    },
+  });
+
+  await service.vote('user-1', 'cafe-1');
+  await service.unvote('user-1', 'cafe-1');
+
+  assert.deepEqual(calls, [
+    { id: 'cafe-1', isPublished: true, isHidden: false },
+    { id: 'cafe-1', isPublished: true, isHidden: false },
+  ]);
+});
+
 test('my votes returns voted cafe ids', async () => {
   const { service } = createService();
 
@@ -103,6 +125,26 @@ test('my votes returns voted cafe ids', async () => {
   await service.vote('user-1', 'cafe-2');
 
   assert.deepEqual(await service.getMyVotes('user-1'), ['cafe-1', 'cafe-2']);
+});
+
+test('my votes excludes unpublished and hidden cafes', async () => {
+  let where: any;
+  const { service } = createService({
+    prisma: {
+      cafeVote: {
+        findMany: async (args: any) => {
+          where = args.where;
+          return [];
+        },
+      },
+    },
+  });
+
+  await service.getMyVotes('user-1');
+  assert.deepEqual(where, {
+    userId: 'user-1',
+    cafe: { isPublished: true, isHidden: false },
+  });
 });
 
 test('weekRange returns previous completed Vietnam Monday-Sunday', () => {
