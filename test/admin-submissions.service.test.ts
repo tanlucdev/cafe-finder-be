@@ -369,7 +369,7 @@ test('approveSubmission omits invalid owner times', async () => {
   assert.equal(cafeCreate.data.closingTime, undefined);
 });
 
-test('approveSubmission ignores owner payload fields for community submissions', async () => {
+test('approveSubmission copies community images but ignores owner-only payload fields', async () => {
   let cafeCreate: any;
   const { service } = createService({
     prisma: {
@@ -417,7 +417,10 @@ test('approveSubmission ignores owner payload fields for community submissions',
   await service.approveSubmission('submission-1');
 
   assert.equal(cafeCreate.data.name, 'Community Cafe');
-  assert.deepEqual(cafeCreate.data.images, []);
+  assert.deepEqual(cafeCreate.data.images, ['owner.webp']);
+  assert.deepEqual(cafeCreate.data.imageOrientations, []);
+  assert.equal(cafeCreate.data.coverImage, 'owner.webp');
+  assert.deepEqual(cafeCreate.data.coverImageCrop, { x: 50, y: 50 });
   assert.deepEqual(cafeCreate.data.tags, []);
   assert.equal(cafeCreate.data.openingTime, undefined);
   assert.equal(cafeCreate.data.priceMin, undefined);

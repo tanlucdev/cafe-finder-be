@@ -1,14 +1,17 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
+import { randomUUID } from 'crypto';
 import type {} from 'multer';
 import { PrismaService } from '../prisma/prisma.service';
 import { StorageService } from '../storage/storage.service';
+import { CreateCommunitySubmissionDto } from './dto/create-community-submission.dto';
 import { CreateSubmissionDto } from './dto/create-submission.dto';
 
 type UploadedFile = Express.Multer.File;
 
 const MAX_OWNER_GALLERY_IMAGES = 12;
 const OWNER_GALLERY_IMAGE_LIMIT_MESSAGE = `Owner gallery allows at most ${MAX_OWNER_GALLERY_IMAGES} images`;
+const DEFAULT_COVER_IMAGE_CROP = { x: 50, y: 50 };
 
 function payloadObject(value: unknown) {
   return typeof value === 'object' && value ? (value as Record<string, unknown>) : {};
@@ -111,6 +114,44 @@ export class SubmissionsService {
         payload: (dto.payload ?? null) as Prisma.InputJsonValue,
       },
     });
+  }
+
+  async createCommunity(
+    userId: string | undefined,
+    dto: CreateCommunitySubmissionDto,
+    files: UploadedFile[],
+  ) {
+    const id = randomUUID();
+    const uploadedUrls: string[] = [];
+    try {
+      const images = await mapLimit(files, 2, async (file) => {
+        const url = await this.storage.uploadImage(file, `submissions/${id}/images`);
+        uploadedUrls.push(url);
+        return url;
+      });
+      const payload = {
+        images,
+        imageOrientations: images.map(() => 'unknown'),
+        coverImage: images[0] ?? null,
+        coverImageCrop: DEFAULT_COVER_IMAGE_CROP,
+      };
+
+      return await this.prisma.cafeSubmission.create({
+        data: {
+          id,
+          ...(userId ? { submittedById: userId } : {}),
+          submissionType: 'community',
+          status: 'pending',
+          name: dto.name,
+          googleMapsUrl: dto.googleMapsUrl,
+          note: dto.note,
+          payload: payload as Prisma.InputJsonValue,
+        },
+      });
+    } catch (error) {
+      await Promise.allSettled(uploadedUrls.map((url) => this.storage.deleteImage(url)));
+      throw error;
+    }
   }
 
   async update(userId: string, id: string, dto: CreateSubmissionDto) {

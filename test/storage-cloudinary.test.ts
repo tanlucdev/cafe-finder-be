@@ -70,6 +70,42 @@ test('cloudinary uploads always convert to WebP', async () => {
   }
 });
 
+test('cloudinary upload failures are controlled upstream errors', async () => {
+  const originalFetch = global.fetch;
+  const service = new StorageService({
+    get: (key: string, fallback = '') =>
+      ({
+        IMAGE_STORAGE_PROVIDER: 'cloudinary',
+        CLOUDINARY_CLOUD_NAME: 'demo',
+        CLOUDINARY_API_KEY: 'key',
+        CLOUDINARY_API_SECRET: 'secret',
+      })[key] ?? fallback,
+  } as any);
+  (service as any).convertToBestWebp = async () => Buffer.from('webp');
+  const file = { originalname: 'original.jpg', mimetype: 'image/jpeg', buffer: Buffer.from('jpg') };
+
+  try {
+    global.fetch = (async () =>
+      new Response(JSON.stringify({ error: { message: 'bad credentials' } }), { status: 401 })) as any;
+    await assert.rejects(
+      () => service.uploadImage(file as any),
+      (error: any) => error.getStatus?.() === 502,
+    );
+
+    global.fetch = (async () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      throw error;
+    }) as any;
+    await assert.rejects(
+      () => service.uploadImage(file as any),
+      (error: any) => error.getStatus?.() === 504,
+    );
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
 test('cloudinary public id is extracted from secure URL', () => {
   assert.equal(
     cloudinaryPublicIdFromUrl(

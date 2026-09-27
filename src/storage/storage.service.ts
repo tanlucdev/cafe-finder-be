@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException } from '@nestjs/common';
+import {
+  BadGatewayException,
+  GatewayTimeoutException,
+  Injectable,
+  InternalServerErrorException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { execFile } from 'child_process';
 import { createHash } from 'crypto';
@@ -186,6 +191,15 @@ export class StorageService {
       readNumberConfig(config.get('IMAGE_WEBP_MAX_QUALITY'), DEFAULT_MAX_QUALITY),
       readNumberConfig(config.get('IMAGE_WEBP_MIN_QUALITY'), DEFAULT_MIN_QUALITY),
     );
+
+    if (
+      this.provider === 'cloudinary' &&
+      (!this.cloudinaryCloudName || !this.cloudinaryApiKey || !this.cloudinaryApiSecret)
+    ) {
+      throw new Error(
+        'Cloudinary requires CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, and CLOUDINARY_API_SECRET',
+      );
+    }
 
     if (this.supabaseKey && !isSupportedSupabaseSecret(this.supabaseKey)) {
       throw new Error(
@@ -451,16 +465,15 @@ export class StorageService {
     const uploadStartedAt = Date.now();
     try {
       response = await fetch(
-        `https://api.cloudinary.com/v1_1/${this.cloudinaryCloudName}/image/upload`,
+        `https://api.cloudinary.com/v1_1/${encodeURIComponent(this.cloudinaryCloudName)}/image/upload`,
         { method: 'POST', body, signal: controller.signal },
       );
       raw = await response.text();
     } catch (error) {
-      const message =
-        error instanceof Error && error.name === 'AbortError'
-          ? 'Cloudinary upload timed out'
-          : (error as Error).message;
-      throw new InternalServerErrorException(message);
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new GatewayTimeoutException('Image storage upload timed out');
+      }
+      throw new BadGatewayException('Image storage is unavailable');
     } finally {
       clearTimeout(timeout);
       console.log(`cloudinary_upload_phase=upload ms=${Date.now() - uploadStartedAt}`);
@@ -477,9 +490,14 @@ export class StorageService {
     }
 
     if (!response.ok || !parsed.secure_url) {
-      throw new InternalServerErrorException(
-        `Cloudinary upload failed: ${parsed.error?.message ?? raw}`,
+      console.error(
+        JSON.stringify({
+          type: 'cloudinary.upload.failed',
+          status: response.status,
+          message: parsed.error?.message ?? raw.slice(0, 500),
+        }),
       );
+      throw new BadGatewayException('Image storage upload failed');
     }
 
     return parsed.secure_url;
