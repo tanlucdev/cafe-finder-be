@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 import { UpdateReviewDto } from './dto/update-review.dto';
 
@@ -94,5 +94,18 @@ export class AdminReviewsService {
       },
     });
     return serialize(review);
+  }
+
+  async hideReviews(ids: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const visible = await tx.cafeReview.count({ where: { id: { in: ids }, isHidden: false } });
+      if (visible !== ids.length) throw new ConflictException('Review selection changed');
+      const result = await tx.cafeReview.updateMany({
+        where: { id: { in: ids }, isHidden: false },
+        data: { isHidden: true },
+      });
+      if (result.count !== ids.length) throw new ConflictException('Review selection changed');
+      return { count: result.count };
+    });
   }
 }

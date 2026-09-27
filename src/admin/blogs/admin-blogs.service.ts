@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import slugify from 'slugify';
 import { PrismaService } from '../../prisma/prisma.service';
 import { AdminBlogFilterDto } from './dto/admin-blog-filter.dto';
@@ -74,6 +74,7 @@ export class AdminBlogsService {
   async listPosts(filter: AdminBlogFilterDto) {
     const { search, tag, is_published, is_featured, page = 1, limit = 10 } = filter;
     const where: any = {
+      isHidden: false,
       ...(tag && { tags: { has: tag } }),
       ...(is_published !== undefined && { isPublished: is_published }),
       ...(is_featured !== undefined && { isFeatured: is_featured }),
@@ -143,8 +144,20 @@ export class AdminBlogsService {
   }
 
   async deletePost(id: string) {
-    await this.findPostOrThrow(id);
-    return this.prisma.blogPost.delete({ where: { id } });
+    return this.hidePosts([id]);
+  }
+
+  async hidePosts(ids: string[]) {
+    return this.prisma.$transaction(async (tx) => {
+      const visible = await tx.blogPost.count({ where: { id: { in: ids }, isHidden: false } });
+      if (visible !== ids.length) throw new ConflictException('Blog post selection changed');
+      const result = await tx.blogPost.updateMany({
+        where: { id: { in: ids }, isHidden: false },
+        data: { isHidden: true },
+      });
+      if (result.count !== ids.length) throw new ConflictException('Blog post selection changed');
+      return { count: result.count };
+    });
   }
 
   async togglePublish(id: string) {
@@ -176,7 +189,7 @@ export class AdminBlogsService {
 
   private async findPostOrThrow(id: string) {
     const post = await this.prisma.blogPost.findUnique({ where: { id } });
-    if (!post) throw new NotFoundException(`Blog post not found: ${id}`);
+    if (!post || post.isHidden) throw new NotFoundException(`Blog post not found: ${id}`);
     return post;
   }
 }

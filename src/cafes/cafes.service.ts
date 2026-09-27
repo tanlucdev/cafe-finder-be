@@ -56,6 +56,7 @@ export class CafesService {
 
     const where: any = {
       isPublished: true,
+      isHidden: false,
       ...(priceRange && priceRangeToFilter(priceRange)),
       ...(openNow && openNowWhere(this.prisma.cafe.fields.openingTime)),
       ...(and.length && { AND: and }),
@@ -145,7 +146,7 @@ export class CafesService {
 
   async trackView(cafeId: string, visitorKey: string) {
     const cafe = await this.prisma.cafe.findFirst({
-      where: { id: cafeId, isPublished: true },
+      where: { id: cafeId, isPublished: true, isHidden: false },
       select: { id: true, viewCount: true },
     });
 
@@ -209,7 +210,7 @@ export class CafesService {
 
   async findBySlug(slug: string, locale?: string) {
     const cafe = await this.prisma.cafe.findFirst({
-      where: { slug, isPublished: true },
+      where: { slug, isPublished: true, isHidden: false },
       include: { _count: { select: { savedCafes: true } } },
     });
 
@@ -265,6 +266,7 @@ export class CafesService {
       FROM cafes c
       WHERE
         c.is_published = true
+        AND c.is_hidden = false
         AND c.location IS NOT NULL
         AND ST_DWithin(
           c.location,
@@ -314,7 +316,7 @@ export class CafesService {
 
   async getDistricts(locale?: string) {
     const result = await this.prisma.cafe.findMany({
-      where: { isPublished: true, district: { not: null } },
+      where: { isPublished: true, isHidden: false, district: { not: null } },
       select: { district: true, districtEn: true },
       distinct: ['district'],
       orderBy: { district: 'asc' },
@@ -353,6 +355,7 @@ export class CafesService {
     const cafes = await this.prisma.cafe.findMany({
       where: {
         isPublished: true,
+        isHidden: false,
         ...(and.length && { AND: and }),
       },
       take: normalizedLimit,

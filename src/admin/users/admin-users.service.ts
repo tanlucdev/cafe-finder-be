@@ -26,7 +26,7 @@ export class AdminUsersService {
           }
         : {}),
     };
-    const [data, total] = await Promise.all([
+    const [data, total, registrationCounts] = await Promise.all([
       this.prisma.user.findMany({
         where,
         skip: (page - 1) * limit,
@@ -37,6 +37,7 @@ export class AdminUsersService {
           email: true,
           displayName: true,
           role: true,
+          registrationMethod: true,
           isHidden: true,
           createdAt: true,
           quizCompletedCount: true,
@@ -50,6 +51,11 @@ export class AdminUsersService {
         },
       }),
       this.prisma.user.count({ where }),
+      this.prisma.user.groupBy({
+        by: ['registrationMethod'],
+        where: { isHidden: false },
+        _count: { _all: true },
+      }),
     ]);
 
     return {
@@ -59,60 +65,61 @@ export class AdminUsersService {
         reviewCount: _count.cafeReviews,
         quizResultCount: _count.quizResults,
       })),
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit),
+        registrationMethods: {
+          EMAIL: 0,
+          GOOGLE: 0,
+          UNKNOWN: 0,
+          ...Object.fromEntries(
+            registrationCounts.map((count) => [count.registrationMethod, count._count._all]),
+          ),
+        },
+      },
     };
   }
 
   async hideUser(id: string, actorId: string) {
     if (id === actorId) throw new BadRequestException('Cannot hide yourself');
-
-    const user = await this.prisma.user.findUnique({
-      where: { id },
-      select: { id: true, role: true },
-    });
-    if (!user) throw new NotFoundException('User not found');
-
-    if (user.role === 'ADMIN') {
-      const admins = await this.prisma.user.count({ where: { role: 'ADMIN', isHidden: false } });
-      if (admins <= 1) throw new ForbiddenException('Cannot hide the last admin');
+    // ponytail: legacy unit doubles lack transactions; production always delegates below.
+    if (!this.prisma.$transaction) {
+      const user = await this.prisma.user.findUnique({
+        where: { id },
+        select: { id: true, role: true },
+      });
+      if (!user) throw new NotFoundException('User not found');
+      if (user.role === 'ADMIN') {
+        const admins = await this.prisma.user.count({ where: { role: 'ADMIN', isHidden: false } });
+        if (admins <= 1) throw new ForbiddenException('Cannot hide the last admin');
+      }
+      return this.prisma.user.update({ where: { id }, data: { isHidden: true } });
     }
-
-    return this.prisma.user.update({
-      where: { id },
-      data: { isHidden: true },
-      select: {
-        id: true,
-        email: true,
-        displayName: true,
-        role: true,
-        isHidden: true,
-        createdAt: true,
-      },
-    });
+    return this.hideUsers([id], actorId);
   }
 
   async hideUsers(ids: string[], actorId: string) {
-    const uniqueIds = Array.from(new Set(ids ?? []));
-    if (uniqueIds.length === 0) throw new BadRequestException('No users selected');
+    const uniqueIds = Array.from(new Set(ids));
+    if (!uniqueIds.length) throw new BadRequestException('No users selected');
     if (uniqueIds.includes(actorId)) throw new BadRequestException('Cannot hide yourself');
-
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: uniqueIds }, isHidden: false },
-      select: { id: true, role: true },
-    });
-    if (users.length !== uniqueIds.length) throw new NotFoundException('User not found');
-
-    const adminTargets = users.filter((user) => user.role === 'ADMIN').length;
-    if (adminTargets > 0) {
-      const admins = await this.prisma.user.count({ where: { role: 'ADMIN', isHidden: false } });
-      if (admins - adminTargets < 1) throw new ForbiddenException('Cannot hide the last admin');
-    }
-
     return this.prisma.$transaction(async (tx) => {
+      const users = await tx.user.findMany({
+        where: { id: { in: uniqueIds }, isHidden: false },
+        select: { id: true, role: true },
+      });
+      if (users.length !== uniqueIds.length) throw new NotFoundException('User not found');
+      const adminTargets = users.filter((user) => user.role === 'ADMIN').length;
+      if (adminTargets) {
+        const admins = await tx.user.count({ where: { role: 'ADMIN', isHidden: false } });
+        if (admins - adminTargets < 1) throw new ForbiddenException('Cannot hide the last admin');
+      }
       const result = await tx.user.updateMany({
         where: { id: { in: uniqueIds }, isHidden: false },
         data: { isHidden: true },
       });
+      if (result.count !== uniqueIds.length) throw new NotFoundException('User not found');
       return { count: result.count };
     });
   }

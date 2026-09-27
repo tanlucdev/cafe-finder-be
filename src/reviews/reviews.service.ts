@@ -80,7 +80,7 @@ export class ReviewsService {
   async listMine(userId: string, page: number = 1, limit: number = 5) {
     page = pageValue(page, 1);
     limit = pageValue(limit, 5, 20);
-    const where = { userId, isHidden: false };
+    const where = { userId, isHidden: false, cafe: { isPublished: true, isHidden: false } };
     const [data, total] = await Promise.all([
       this.prisma.cafeReview.findMany({
         where,
@@ -129,7 +129,9 @@ export class ReviewsService {
   }
 
   private async ensurePublishedCafe(cafeId: string) {
-    const cafe = await this.prisma.cafe.findFirst({ where: { id: cafeId, isPublished: true } });
+    const cafe = await this.prisma.cafe.findFirst({
+      where: { id: cafeId, isPublished: true, isHidden: false },
+    });
     if (!cafe) throw new NotFoundException('Cafe not found');
   }
 

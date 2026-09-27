@@ -1,4 +1,9 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import type {} from 'multer';
 import slugify from 'slugify';
 import { PrismaService } from '../../prisma/prisma.service';
@@ -89,6 +94,7 @@ export class AdminCafesService {
     }
 
     const where: any = {
+      isHidden: false,
       ...(is_published !== undefined && { isPublished: is_published }),
       ...(is_featured !== undefined && { isFeatured: is_featured }),
       ...(and.length && { AND: and }),
@@ -223,10 +229,22 @@ export class AdminCafesService {
   }
 
   async deleteCafe(id: string) {
-    await this.findCafeOrThrow(id);
-    const cafe = await this.prisma.cafe.delete({ where: { id } });
+    return this.hideCafes([id]);
+  }
+
+  async hideCafes(ids: string[]) {
+    const result = await this.prisma.$transaction(async (tx) => {
+      const visible = await tx.cafe.count({ where: { id: { in: ids }, isHidden: false } });
+      if (visible !== ids.length) throw new ConflictException('Cafe selection changed');
+      const result = await tx.cafe.updateMany({
+        where: { id: { in: ids }, isHidden: false },
+        data: { isHidden: true },
+      });
+      if (result.count !== ids.length) throw new ConflictException('Cafe selection changed');
+      return { count: result.count };
+    });
     await this.revalidate.trigger();
-    return cafe;
+    return result;
   }
 
   async togglePublish(id: string) {
@@ -436,7 +454,7 @@ export class AdminCafesService {
 
   private async findCafeOrThrow(id: string) {
     const cafe = await this.prisma.cafe.findUnique({ where: { id } });
-    if (!cafe) throw new NotFoundException(`Cafe not found: ${id}`);
+    if (!cafe || cafe.isHidden) throw new NotFoundException(`Cafe not found: ${id}`);
     return cafe;
   }
 }

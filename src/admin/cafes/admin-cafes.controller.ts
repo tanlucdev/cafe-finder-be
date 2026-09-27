@@ -30,6 +30,7 @@ import { ImportCafeImagesDto } from './dto/import-cafe-images.dto';
 import { ReorderCafeImagesDto } from './dto/reorder-cafe-images.dto';
 import { ToggleFeatureDto } from './dto/toggle-feature.dto';
 import { UpdateCafeDto } from './dto/update-cafe.dto';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 type UploadedFile = Express.Multer.File;
 
@@ -86,6 +87,12 @@ export class AdminCafesController {
   @ApiOperation({ summary: 'Create a new cafe' })
   createCafe(@Body() dto: CreateCafeDto) {
     return this.adminCafesService.createCafe(dto);
+  }
+
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide cafes' })
+  hideCafes(@Body() dto: BulkHideDto) {
+    return this.adminCafesService.hideCafes(dto.ids);
   }
 
   @Patch(':id')

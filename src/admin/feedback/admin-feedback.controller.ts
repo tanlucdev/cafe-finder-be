@@ -5,6 +5,7 @@ import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminFeedbackService } from './admin-feedback.service';
 import { UpdateFeedbackDto } from './dto/update-feedback.dto';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 @ApiTags('Admin Feedback')
 @Controller('admin/feedback')
@@ -35,9 +36,16 @@ export class AdminFeedbackController {
     return this.adminFeedbackService.getFeedback(id);
   }
 
+  @Patch('hide')
+  @ApiOperation({ summary: 'Hide feedback' })
+  hideFeedback(@Body() dto: BulkHideDto) {
+    return this.adminFeedbackService.hideFeedback(dto.ids);
+  }
+
   @Patch(':id')
   @ApiOperation({ summary: 'Update feedback status or admin note' })
   updateFeedback(@Param('id') id: string, @Body() dto: UpdateFeedbackDto) {
     return this.adminFeedbackService.updateFeedback(id, dto);
   }
+
 }

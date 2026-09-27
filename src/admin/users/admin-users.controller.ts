@@ -5,6 +5,7 @@ import { Roles } from '../../common/decorators/roles.decorator';
 import { RolesGuard } from '../../common/guards/roles.guard';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { AdminUsersService } from './admin-users.service';
+import { BulkHideDto } from '../dto/bulk-hide.dto';
 
 @ApiTags('Admin Users')
 @Controller('admin/users')
@@ -35,7 +36,7 @@ export class AdminUsersController {
 
   @Patch('hide')
   @ApiOperation({ summary: 'Hide users' })
-  hideUsers(@Body('ids') ids: string[], @CurrentUser() user: { id: string }) {
-    return this.adminUsersService.hideUsers(ids, user.id);
+  hideUsers(@Body() dto: BulkHideDto | string[], @CurrentUser() user: { id: string }) {
+    return this.adminUsersService.hideUsers(Array.isArray(dto) ? dto : dto.ids, user.id);
   }
 }

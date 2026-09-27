@@ -35,6 +35,7 @@ export class AuthService {
       data: {
         email: dto.email,
         passwordHash,
+        registrationMethod: 'EMAIL',
         displayName: dto.displayName,
       },
       select: { id: true, email: true, displayName: true, role: true, createdAt: true },
