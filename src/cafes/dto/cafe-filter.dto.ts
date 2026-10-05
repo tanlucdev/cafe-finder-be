@@ -58,6 +58,15 @@ export class CafeFilterDto {
   @IsBoolean()
   openNow?: boolean;
 
+  @ApiPropertyOptional({
+    enum: ['open_at_7', 'open_24h'],
+    description: 'open_at_7 opens exactly at 07:00; open_24h has matching opening and closing times.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === 'from_7' ? 'open_at_7' : value))
+  @IsIn(['open_at_7', 'open_24h'])
+  hours?: 'open_at_7' | 'open_24h';
+
   @ApiPropertyOptional({ example: 'quiet,vintage', description: 'Comma-separated vibes' })
   @IsOptional()
   @Transform(({ value }) => (typeof value === 'string' ? value.split(',').filter(Boolean) : value))

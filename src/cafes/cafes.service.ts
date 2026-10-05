@@ -10,6 +10,7 @@ import {
   cafeOrderBy,
   DistanceMode,
   NearbyCafeRow,
+  hoursWhere,
   openNowWhere,
   priceRangeToFilter,
 } from './cafes.helpers';
@@ -23,7 +24,7 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { locale, district, districts, search, priceRange, vibes, purposes, tags } = filter;
+    const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } = filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
 
     const and: any[] = [];
@@ -56,6 +57,7 @@ export class CafesService {
     if (tags?.length) {
       and.push({ OR: [{ tags: { hasSome: tags } }, { tagsEn: { hasSome: tags } }] });
     }
+    if (hours) and.push(hoursWhere(hours, this.prisma.cafe.fields.closingTime));
 
     const where: any = {
       isPublished: true,
