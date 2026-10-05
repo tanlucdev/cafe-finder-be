@@ -1,8 +1,11 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { Prisma } from '@prisma/client';
+import { plainToInstance } from 'class-transformer';
+import { validateSync } from 'class-validator';
 import { CafesService } from '../src/cafes/cafes.service';
 import { serializeLocalizedCafe } from '../src/cafes/cafe.mapper';
+import { CafeFilterDto } from '../src/cafes/dto/cafe-filter.dto';
 
 function createService(overrides: any = {}) {
   const prisma = {
@@ -40,6 +43,110 @@ test('serializeLocalizedCafe dedupes localized list values case-insensitively', 
 
   assert.deepEqual(cafe.amenities, ['wifi', 'ổ cắm', 'điều hoà', 'Chỗ đậu xe']);
   assert.deepEqual(cafe.tags, ['Ngoài trời']);
+});
+
+test('CafeFilterDto accepts normalized districts and keeps legacy district', () => {
+  const dto = plainToInstance(CafeFilterDto, {
+    districts: ' Quận 1,Quận 3,,Quận 1 , Quận 3 ',
+    district: 'Quận 2',
+  });
+
+  assert.deepEqual(validateSync(dto, { whitelist: true, forbidNonWhitelisted: true }), []);
+  assert.deepEqual(dto.districts, ['Quận 1', 'Quận 3']);
+  assert.equal(dto.district, 'Quận 2');
+});
+
+test('findAll uses districts before legacy district for exact matching, count, sorting, and pagination', async () => {
+  const findManyCalls: any[] = [];
+  const countCalls: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          findManyCalls.push(args);
+          return [{ id: 'cafe-1', _count: { savedCafes: 0 } }];
+        },
+        count: async (args: any) => {
+          countCalls.push(args);
+          return 3;
+        },
+      },
+    },
+  });
+
+  const result = await service.findAll({
+    districts: ['Quận 1', 'Quận 3'],
+    district: 'Quận 2',
+    sort: 'newest',
+    page: 2,
+    limit: 1,
+  });
+  const where = {
+    isPublished: true,
+    isHidden: false,
+    AND: [
+      {
+        OR: [
+          { district: { in: ['Quận 1', 'Quận 3'] } },
+          { districtEn: { in: ['Quận 1', 'Quận 3'] } },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(findManyCalls[0].where, where);
+  assert.deepEqual(countCalls[0], { where });
+  assert.equal(findManyCalls[0].skip, 1);
+  assert.equal(findManyCalls[0].take, 1);
+  assert.deepEqual(findManyCalls[0].orderBy, [{ createdAt: 'desc' }]);
+  assert.deepEqual(result.meta, { total: 3, page: 2, limit: 1, totalPages: 3 });
+});
+
+test('findAll keeps legacy district as a one-item exact-match list', async () => {
+  let findManyArgs: any;
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          findManyArgs = args;
+          return [];
+        },
+        count: async () => 0,
+      },
+    },
+  });
+
+  await service.findAll({ district: 'Quận 1', sort: 'rating' });
+
+  assert.deepEqual(findManyArgs.where.AND, [
+    { OR: [{ district: { in: ['Quận 1'] } }, { districtEn: { in: ['Quận 1'] } }] },
+  ]);
+});
+
+test('findAll passes the district predicate through popular sorting and count', async () => {
+  const calls: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          calls.push(args);
+          return [];
+        },
+        count: async (args: any) => {
+          calls.push(args);
+          return 0;
+        },
+      },
+    },
+  });
+
+  await service.findAll({ districts: ['Quận 1'] });
+
+  const predicate = {
+    OR: [{ district: { in: ['Quận 1'] } }, { districtEn: { in: ['Quận 1'] } }],
+  };
+  assert.deepEqual(calls[0].where.AND, [predicate]);
+  assert.deepEqual(calls[1].where.AND, [predicate]);
 });
 
 test('findAll passes rating sort to Prisma before pagination', async () => {

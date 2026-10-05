@@ -23,12 +23,15 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { locale, district, search, priceRange, vibes, purposes, tags } = filter;
+    const { locale, district, districts, search, priceRange, vibes, purposes, tags } = filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
 
     const and: any[] = [];
-    if (district) {
-      and.push({ OR: [{ district }, { districtEn: district }] });
+    const selectedDistricts = districts?.length ? districts : district ? [district] : [];
+    if (selectedDistricts.length) {
+      and.push({
+        OR: [{ district: { in: selectedDistricts } }, { districtEn: { in: selectedDistricts } }],
+      });
     }
     if (search) {
       and.push({
