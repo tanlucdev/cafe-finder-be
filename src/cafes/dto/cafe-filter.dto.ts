@@ -18,6 +18,27 @@ export class CafeFilterDto {
   @IsString()
   district?: string;
 
+  @ApiPropertyOptional({
+    example: 'Quận 1,Quận 3',
+    description: 'Comma-separated districts. Takes precedence over district when non-empty.',
+  })
+  @IsOptional()
+  @Transform(({ value }) =>
+    typeof value === 'string'
+      ? [
+          ...new Set(
+            value
+              .split(',')
+              .map((district) => district.trim())
+              .filter(Boolean),
+          ),
+        ]
+      : value,
+  )
+  @IsArray()
+  @IsString({ each: true })
+  districts?: string[];
+
   @ApiPropertyOptional({ example: 'highland' })
   @IsOptional()
   @IsString()
