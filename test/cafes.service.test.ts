@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import * as assert from 'node:assert/strict';
 import { Prisma } from '@prisma/client';
+import { ValidationPipe } from '@nestjs/common';
 import { CafesService } from '../src/cafes/cafes.service';
 import { serializeLocalizedCafe } from '../src/cafes/cafe.mapper';
+import { CafeFilterDto } from '../src/cafes/dto/cafe-filter.dto';
 
 function createService(overrides: any = {}) {
   const prisma = {
@@ -70,6 +72,39 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
     { id: 'cafe-1', savedCount: 3, viewCount: 0, voteCount: 4, weeklyVoteCount: 0 },
   ]);
   assert.deepEqual(result.meta, { total: 1, page: 2, limit: 9, totalPages: 1 });
+});
+
+test('opening hours filter contract accepts legacy input, filters both modes, rejects invalid input', async () => {
+  const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
+  const legacy = await pipe.transform(
+    { hours: 'from_7' },
+    { type: 'query', metatype: CafeFilterDto },
+  );
+  await assert.rejects(
+    () => pipe.transform({ hours: 'invalid' }, { type: 'query', metatype: CafeFilterDto }),
+    (error: any) => error.getStatus?.() === 400,
+  );
+
+  const queries: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        fields: { closingTime: 'closingTime' },
+        findMany: async (args: any) => {
+          queries.push(args);
+          return [];
+        },
+        count: async () => 0,
+      },
+    },
+  });
+  await service.findAll({ hours: legacy.hours, sort: 'rating' });
+  await service.findAll({ hours: 'open_24h', sort: 'rating' });
+
+  assert.deepEqual(queries.map((query) => query.where.AND), [
+    [{ openingTime: { equals: new Date('1970-01-01T07:00:00.000Z') } }],
+    [{ openingTime: { equals: 'closingTime' } }],
+  ]);
 });
 
 test('findAll popular sort uses previous-week votes before all-time and featured', async () => {
