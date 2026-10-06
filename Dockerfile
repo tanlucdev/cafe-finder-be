@@ -8,7 +8,7 @@ RUN npm run build
 
 FROM node:18-alpine
 WORKDIR /app
-RUN apk add --no-cache openssl
+RUN apk add --no-cache openssl libheif-tools
 COPY package*.json ./
 RUN npm ci --omit=dev
 COPY --from=builder /app/dist ./dist
