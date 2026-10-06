@@ -207,10 +207,13 @@ test('opening hours filter contract accepts legacy input, filters both modes, re
   await service.findAll({ hours: legacy.hours, sort: 'rating' });
   await service.findAll({ hours: 'open_24h', sort: 'rating' });
 
-  assert.deepEqual(queries.map((query) => query.where.AND), [
-    [{ openingTime: { equals: new Date('1970-01-01T07:00:00.000Z') } }],
-    [{ openingTime: { equals: 'closingTime' } }],
-  ]);
+  assert.deepEqual(
+    queries.map((query) => query.where.AND),
+    [
+      [{ openingTime: { equals: new Date('1970-01-01T07:00:00.000Z') } }],
+      [{ openingTime: { equals: 'closingTime' } }],
+    ],
+  );
 });
 
 test('findAll popular sort uses previous-week votes before all-time and featured', async () => {

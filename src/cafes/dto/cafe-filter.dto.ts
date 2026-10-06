@@ -60,7 +60,8 @@ export class CafeFilterDto {
 
   @ApiPropertyOptional({
     enum: ['open_at_7', 'open_24h'],
-    description: 'open_at_7 opens exactly at 07:00; open_24h has matching opening and closing times.',
+    description:
+      'open_at_7 opens exactly at 07:00; open_24h has matching opening and closing times.',
   })
   @IsOptional()
   @Transform(({ value }) => (value === 'from_7' ? 'open_at_7' : value))

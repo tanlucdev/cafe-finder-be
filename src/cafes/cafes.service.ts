@@ -24,7 +24,8 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto) {
-    const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } = filter;
+    const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } =
+      filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
 
     const and: any[] = [];
