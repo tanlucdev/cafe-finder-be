@@ -147,3 +147,8 @@ export function openNowWhere(openingTimeField: any, now = getVietnamTimeAsDate()
     ],
   };
 }
+
+export function hoursWhere(hours: CafeFilterDto['hours'], closingTimeField: any) {
+  if (hours === 'open_24h') return { openingTime: { equals: closingTimeField } };
+  return { openingTime: { equals: new Date('1970-01-01T07:00:00.000Z') } };
+}
