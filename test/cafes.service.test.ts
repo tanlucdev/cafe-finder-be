@@ -180,6 +180,34 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
   assert.deepEqual(result.meta, { total: 1, page: 2, limit: 9, totalPages: 1 });
 });
 
+test('guest discovery returns readable cafes plus locked teaser slots', async () => {
+  const calls: any[] = [];
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async (args: any) => {
+          calls.push(args);
+          return [];
+        },
+        count: async () => 25,
+      },
+    },
+  });
+
+  const result = await service.findAll({ sort: 'rating', page: 2, limit: 9 }, null);
+
+  assert.deepEqual(
+    calls.map(({ skip, take }) => ({ skip, take })),
+    [
+      { skip: 9, take: 6 },
+      { skip: 15, take: 3 },
+    ],
+  );
+  assert.equal(result.meta.discovery?.readableTotal, 15);
+  assert.equal(result.meta.discovery?.lockedTotal, 3);
+  assert.equal(result.meta.discovery?.teaserSlots, 3);
+});
+
 test('opening hours filter contract accepts legacy input, filters both modes, rejects invalid input', async () => {
   const pipe = new ValidationPipe({ transform: true, whitelist: true, forbidNonWhitelisted: true });
   const legacy = await pipe.transform(

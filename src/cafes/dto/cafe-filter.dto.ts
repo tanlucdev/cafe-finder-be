@@ -1,4 +1,14 @@
-import { IsOptional, IsString, IsArray, IsInt, Min, Max, IsIn, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsArray,
+  IsInt,
+  IsNumber,
+  Min,
+  Max,
+  IsIn,
+  IsBoolean,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -18,10 +28,7 @@ export class CafeFilterDto {
   @IsString()
   district?: string;
 
-  @ApiPropertyOptional({
-    example: 'Quận 1,Quận 3',
-    description: 'Comma-separated districts. Takes precedence over district when non-empty.',
-  })
+  @ApiPropertyOptional({ example: 'Quận 1,Quận 3' })
   @IsOptional()
   @Transform(({ value }) =>
     typeof value === 'string'
@@ -61,7 +68,7 @@ export class CafeFilterDto {
   @ApiPropertyOptional({
     enum: ['open_at_7', 'open_24h'],
     description:
-      'open_at_7 opens exactly at 07:00; open_24h has matching opening and closing times.',
+      'open_at_7 = opens exactly at 07:00:00; open_24h = opening and closing times match. Legacy from_7 is accepted as open_at_7.',
   })
   @IsOptional()
   @Transform(({ value }) => (value === 'from_7' ? 'open_at_7' : value))
@@ -100,4 +107,24 @@ export class CafeFilterDto {
   @Min(1)
   @Max(50)
   limit?: number = 12;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 8 })
+  lat?: number;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 8 })
+  lng?: number;
+
+  @ApiPropertyOptional({ default: 2 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber({ maxDecimalPlaces: 2 })
+  @Min(0.1)
+  @Max(50)
+  radius?: number;
 }

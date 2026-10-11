@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
@@ -9,12 +9,24 @@ import {
   cafeListSelect,
   cafeOrderBy,
   DistanceMode,
+  getVietnamTimeAsDate,
   NearbyCafeRow,
   hoursWhere,
   openNowWhere,
   priceRangeToFilter,
 } from './cafes.helpers';
 import { CafeVotesService } from './cafe-votes.service';
+
+interface DiscoveryWindow {
+  readableTotal: number;
+  lockedTotal: number;
+  displayTotal: number;
+  teaserSlots: number;
+  navigationTotalPages: number;
+  skip: number;
+  take: number;
+  teaserSkip: number;
+}
 
 @Injectable()
 export class CafesService {
@@ -23,7 +35,7 @@ export class CafesService {
     private routeDistance: RouteDistanceService,
   ) {}
 
-  async findAll(filter: CafeFilterDto) {
+  async findAll(filter: CafeFilterDto, user?: { id: string } | null) {
     const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } =
       filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
@@ -68,19 +80,28 @@ export class CafesService {
       ...(and.length && { AND: and }),
     };
 
-    if (!sort || sort === 'popular') return this.findAllPopular(where, locale, page, limit);
+    const total = await this.prisma.cafe.count({ where });
+    const discovery =
+      user === null
+        ? this.discoveryWindow(total, page, limit, this.hasDiscoveryFilter(filter))
+        : null;
 
-    const [cafes, total] = await Promise.all([
-      this.prisma.cafe.findMany({
-        where,
-        skip: (page - 1) * limit,
-        take: limit,
-        orderBy: cafeOrderBy(sort),
-        select: cafeListSelect,
-      }),
-      this.prisma.cafe.count({ where }),
+    if (!sort || sort === 'popular') {
+      return this.findAllPopular(where, locale, page, limit, total, discovery);
+    }
+
+    const cafes = await this.prisma.cafe.findMany({
+      where,
+      skip: discovery?.skip ?? (page - 1) * limit,
+      take: discovery?.take ?? limit,
+      orderBy: cafeOrderBy(sort),
+      select: cafeListSelect,
+    });
+    const [voteCounts, teaserImages] = await Promise.all([
+      this.getVoteCountMaps(cafes.map((cafe) => cafe.id)),
+      this.findTeaserImages(where, cafeOrderBy(sort), discovery),
     ]);
-    const { totalByCafe } = await this.getVoteCountMaps(cafes.map((cafe) => cafe.id));
+    const { totalByCafe } = voteCounts;
 
     const data = cafes.map((cafe) =>
       this.serializeListCafe(cafe, locale, 0, totalByCafe.get(cafe.id) ?? 0),
@@ -88,12 +109,7 @@ export class CafesService {
 
     return {
       data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
+      meta: this.listMeta(total, page, limit, discovery, teaserImages),
     };
   }
 
@@ -102,15 +118,35 @@ export class CafesService {
     locale: string | undefined,
     page: number,
     limit: number,
+    total: number,
+    discovery: DiscoveryWindow | null,
   ) {
-    const [cafes, total] = await Promise.all([
-      this.prisma.cafe.findMany({
+    if (discovery) {
+      const cafes = await this.prisma.cafe.findMany({
         where,
+        skip: discovery.skip,
+        take: discovery.take,
         orderBy: cafeOrderBy('popular'),
         select: cafeListSelect,
-      }),
-      this.prisma.cafe.count({ where }),
-    ]);
+      });
+      const [voteCounts, teaserImages] = await Promise.all([
+        this.getVoteCountMaps(cafes.map((cafe) => cafe.id)),
+        this.findTeaserImages(where, cafeOrderBy('popular'), discovery),
+      ]);
+      const { totalByCafe } = voteCounts;
+      return {
+        data: cafes.map((cafe) =>
+          this.serializeListCafe(cafe, locale, 0, totalByCafe.get(cafe.id) ?? 0),
+        ),
+        meta: this.listMeta(total, page, limit, discovery, teaserImages),
+      };
+    }
+
+    const cafes = await this.prisma.cafe.findMany({
+      where,
+      orderBy: cafeOrderBy('popular'),
+      select: cafeListSelect,
+    });
     const { weeklyByCafe, totalByCafe } = await this.getVoteCountMaps(cafes.map((cafe) => cafe.id));
     const data = cafes
       .sort(
@@ -135,7 +171,86 @@ export class CafesService {
 
     return {
       data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
+      meta: this.listMeta(total, page, limit, null),
+    };
+  }
+
+  private hasDiscoveryFilter(filter: CafeFilterDto) {
+    return Boolean(
+      filter.search ||
+      filter.district ||
+      filter.districts?.length ||
+      filter.vibes?.length ||
+      filter.purposes?.length ||
+      filter.tags?.length ||
+      filter.priceRange ||
+      filter.openNow ||
+      filter.hours,
+    );
+  }
+
+  private discoveryWindow(
+    total: number,
+    page: number,
+    limit: number,
+    filtered: boolean,
+  ): DiscoveryWindow {
+    const readableTotal = filtered ? Math.ceil(total * 0.3) : Math.min(total, 15);
+    const lockedTotal = filtered ? total - readableTotal : Math.min(3, Math.max(0, total - 15));
+    const displayTotal = readableTotal + lockedTotal;
+    const offset = (page - 1) * limit;
+    const readableStart = Math.min(Math.max(offset, 0), readableTotal);
+    const readableEnd = Math.min(offset + limit, readableTotal);
+    const lockedStart = Math.max(offset, readableTotal);
+    const lockedEnd = Math.min(offset + limit, displayTotal);
+    return {
+      readableTotal,
+      lockedTotal,
+      displayTotal,
+      teaserSlots: Math.max(0, lockedEnd - lockedStart),
+      navigationTotalPages: Math.ceil(displayTotal / limit),
+      skip: readableStart,
+      take: Math.max(0, readableEnd - readableStart),
+      teaserSkip: lockedStart,
+    };
+  }
+
+  private async findTeaserImages(where: any, orderBy: any[], discovery: DiscoveryWindow | null) {
+    if (!discovery?.teaserSlots) return [];
+    return this.prisma.cafe.findMany({
+      where,
+      skip: discovery.teaserSkip,
+      take: discovery.teaserSlots,
+      orderBy,
+      select: { coverImage: true },
+    });
+  }
+
+  private listMeta(
+    total: number,
+    page: number,
+    limit: number,
+    discovery: DiscoveryWindow | null,
+    teaserImages: { coverImage: string | null }[] = [],
+  ) {
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      ...(discovery && {
+        discovery: {
+          restricted: true,
+          readableTotal: discovery.readableTotal,
+          lockedTotal: discovery.lockedTotal,
+          displayTotal: discovery.displayTotal,
+          teaserSlots: discovery.teaserSlots,
+          ...(teaserImages.length && {
+            teaserImages: teaserImages.map((teaser) => teaser.coverImage),
+          }),
+          navigationTotalPages: discovery.navigationTotalPages,
+        },
+      }),
     };
   }
 
@@ -318,6 +433,119 @@ export class CafesService {
         };
       })
       .sort((a, b) => Number(a.distance_km) - Number(b.distance_km));
+  }
+
+  async findNearbyDiscovery(filter: CafeFilterDto, user?: { id: string } | null) {
+    const { lat, lng, radius = 2, page = 1, limit = 12, locale, sort } = filter;
+    if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+      throw new BadRequestException('lat and lng are required');
+    }
+
+    const radiusMeters = radius * 1000;
+    const selectedDistricts = filter.districts?.length
+      ? filter.districts
+      : filter.district
+        ? [filter.district]
+        : [];
+    const clauses: Prisma.Sql[] = [
+      Prisma.sql`c.is_published = true`,
+      Prisma.sql`c.is_hidden = false`,
+      Prisma.sql`c.location IS NOT NULL`,
+      Prisma.sql`ST_DWithin(c.location, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography, ${radiusMeters})`,
+    ];
+    if (selectedDistricts.length) {
+      const values = Prisma.join(selectedDistricts);
+      clauses.push(Prisma.sql`(c.district IN (${values}) OR c.district_en IN (${values}))`);
+    }
+    if (filter.search) {
+      const search = `%${filter.search}%`;
+      clauses.push(Prisma.sql`(
+        c.name ILIKE ${search} OR c.name_en ILIKE ${search} OR c.address ILIKE ${search}
+        OR c.address_en ILIKE ${search} OR c.one_liner ILIKE ${search} OR c.one_liner_en ILIKE ${search}
+      )`);
+    }
+    if (filter.vibes?.length) {
+      clauses.push(
+        Prisma.sql`(c.vibes && ARRAY[${Prisma.join(filter.vibes)}]::text[] OR c.vibes_en && ARRAY[${Prisma.join(filter.vibes)}]::text[])`,
+      );
+    }
+    if (filter.purposes?.length) {
+      clauses.push(
+        Prisma.sql`(c.purposes && ARRAY[${Prisma.join(filter.purposes)}]::text[] OR c.purposes_en && ARRAY[${Prisma.join(filter.purposes)}]::text[])`,
+      );
+    }
+    if (filter.tags?.length) {
+      clauses.push(
+        Prisma.sql`(c.tags && ARRAY[${Prisma.join(filter.tags)}]::text[] OR c.tags_en && ARRAY[${Prisma.join(filter.tags)}]::text[])`,
+      );
+    }
+    if (filter.priceRange) {
+      if (filter.priceRange === 'under_50k') clauses.push(Prisma.sql`c.price_max <= 50000`);
+      if (filter.priceRange === 'price_50k_100k') {
+        clauses.push(Prisma.sql`c.price_min >= 50000 AND c.price_max <= 100000`);
+      }
+      if (filter.priceRange === 'price_100k_150k') {
+        clauses.push(Prisma.sql`c.price_min >= 100000 AND c.price_max <= 150000`);
+      }
+      if (filter.priceRange === 'above_150k') clauses.push(Prisma.sql`c.price_min >= 150000`);
+    }
+    if (filter.hours === 'open_at_7')
+      clauses.push(Prisma.sql`c.opening_time = '1970-01-01 07:00:00'`);
+    if (filter.hours === 'open_24h') clauses.push(Prisma.sql`c.opening_time = c.closing_time`);
+    if (filter.openNow) {
+      const now = getVietnamTimeAsDate();
+      clauses.push(Prisma.sql`c.opening_time IS NOT NULL AND c.closing_time IS NOT NULL AND (
+        c.opening_time = c.closing_time OR
+        (c.closing_time > c.opening_time AND c.opening_time <= ${now} AND c.closing_time > ${now}) OR
+        (c.closing_time <= c.opening_time AND (c.opening_time <= ${now} OR c.closing_time > ${now}))
+      )`);
+    }
+
+    const where = Prisma.join(clauses, ' AND ');
+    const [{ count }] = await this.prisma.$queryRaw<{ count: bigint }[]>`
+      SELECT COUNT(*)::bigint AS count FROM cafes c WHERE ${where}
+    `;
+    const total = Number(count);
+    const discovery = user === null ? this.discoveryWindow(total, page, limit, true) : null;
+    const offset = discovery?.skip ?? (page - 1) * limit;
+    const take = discovery?.take ?? limit;
+    const orderBy =
+      sort === 'rating'
+        ? Prisma.sql`c.rating DESC NULLS LAST, distance_km ASC`
+        : sort === 'newest'
+          ? Prisma.sql`c.created_at DESC, distance_km ASC`
+          : Prisma.sql`c.view_count DESC, distance_km ASC`;
+    const cafes = await this.prisma.$queryRaw<NearbyCafeRow[]>`
+      SELECT
+        c.id, c.name, c.name_en AS "nameEn", c.slug,
+        c.address, c.address_en AS "addressEn", c.district, c.district_en AS "districtEn",
+        c.opening_time AS "openingTime", c.closing_time AS "closingTime",
+        c.price_min AS "priceMin", c.price_max AS "priceMax",
+        c.one_liner AS "oneLiner", c.one_liner_en AS "oneLinerEn",
+        c.parking_location AS "parkingLocation", c.parking_location_en AS "parkingLocationEn",
+        c.vibes, c.vibes_en AS "vibesEn", c.purposes, c.purposes_en AS "purposesEn",
+        c.amenities, c.amenities_en AS "amenitiesEn", c.tags, c.tags_en AS "tagsEn",
+        c.cover_image AS "coverImage", c.cover_image_crop AS "coverImageCrop",
+        c.menu_image AS "menuImage", c.menu_images AS "menuImages",
+        ST_Y(c.location::geometry) AS lat, ST_X(c.location::geometry) AS lng,
+        ROUND((ST_Distance(c.location, ST_SetSRID(ST_MakePoint(${lng}, ${lat}), 4326)::geography) / 1000)::numeric, 2) AS distance_km
+      FROM cafes c WHERE ${where}
+      ORDER BY ${orderBy} LIMIT ${take} OFFSET ${offset}
+    `;
+    const teaserImages = discovery?.teaserSlots
+      ? await this.prisma.$queryRaw<{ coverImage: string | null }[]>`
+          SELECT c.cover_image AS "coverImage" FROM cafes c WHERE ${where}
+          ORDER BY ${orderBy} LIMIT ${discovery.teaserSlots} OFFSET ${discovery.teaserSkip}
+        `
+      : [];
+    return {
+      data: cafes.map((cafe) => ({
+        ...serializeLocalizedCafe(cafe, locale),
+        distanceMode: 'straight' as const,
+        distance_mode: 'straight' as const,
+      })),
+      meta: this.listMeta(total, page, limit, discovery, teaserImages),
+    };
   }
 
   async getDistricts(locale?: string) {
