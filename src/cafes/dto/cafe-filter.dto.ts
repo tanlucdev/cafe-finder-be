@@ -1,4 +1,14 @@
-import { IsOptional, IsString, IsArray, IsInt, Min, Max, IsIn, IsBoolean } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsArray,
+  IsInt,
+  Min,
+  Max,
+  IsIn,
+  IsBoolean,
+  IsNumber,
+} from 'class-validator';
 import { Transform, Type } from 'class-transformer';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
@@ -38,6 +48,35 @@ export class CafeFilterDto {
   @IsArray()
   @IsString({ each: true })
   districts?: string[];
+
+  @ApiPropertyOptional({ example: 10.77 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-90)
+  @Max(90)
+  lat?: number;
+
+  @ApiPropertyOptional({ example: 106.7 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(-180)
+  @Max(180)
+  lng?: number;
+
+  @ApiPropertyOptional({ default: 2, maximum: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsNumber()
+  @Min(0.1)
+  @Max(50)
+  radius?: number;
+
+  @ApiPropertyOptional({ enum: ['straight', 'route'], default: 'route' })
+  @IsOptional()
+  @IsIn(['straight', 'route'])
+  distanceMode?: 'straight' | 'route';
 
   @ApiPropertyOptional({ example: 'highland' })
   @IsOptional()
