@@ -204,13 +204,14 @@ test('guest discovery allows a full first page before locking later results', as
   assert.equal(guest.data.length, 9);
   assert.deepEqual(guest.meta.discovery, {
     displayTotal: 18,
+    previewTotal: 15,
     teaserSlots: 0,
     totalPages: 2,
   });
 });
 
 test('guest list allows fifteen filtered cafes before locking later results', async () => {
-  const cafes = Array.from({ length: 18 }, (_, index) => ({
+  const cafes = Array.from({ length: 27 }, (_, index) => ({
     id: String(index),
     _count: { savedCafes: 0 },
   }));
@@ -226,11 +227,29 @@ test('guest list allows fifteen filtered cafes before locking later results', as
 
   const firstPage = await service.findAll({ search: 'coffee', sort: 'rating', limit: 9 });
   const secondPage = await service.findAll({ search: 'coffee', sort: 'rating', page: 2, limit: 9 });
+  const thirdPage = await service.findAll({ search: 'coffee', sort: 'rating', page: 3, limit: 9 });
 
   assert.equal(firstPage.data.length, 9);
-  assert.deepEqual(firstPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 0 });
+  assert.deepEqual(firstPage.meta.discovery, {
+    displayTotal: 27,
+    previewTotal: 15,
+    totalPages: 3,
+    teaserSlots: 0,
+  });
   assert.equal(secondPage.data.length, 6);
-  assert.deepEqual(secondPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 3 });
+  assert.deepEqual(secondPage.meta.discovery, {
+    displayTotal: 27,
+    previewTotal: 15,
+    totalPages: 3,
+    teaserSlots: 3,
+  });
+  assert.equal(thirdPage.data.length, 0);
+  assert.deepEqual(thirdPage.meta.discovery, {
+    displayTotal: 27,
+    previewTotal: 15,
+    totalPages: 3,
+    teaserSlots: 9,
+  });
 });
 
 test('member discovery receives all records and no discovery metadata', async () => {
