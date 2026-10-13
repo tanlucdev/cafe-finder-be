@@ -460,7 +460,12 @@ type CafePageMeta = {
   page: number;
   limit: number;
   totalPages: number;
-  discovery?: { displayTotal: number; totalPages: number; teaserSlots: number };
+  discovery?: {
+    displayTotal: number;
+    totalPages: number;
+    teaserSlots: number;
+    previewTotal: number;
+  };
 };
 
 function gateCafePage<T>(
@@ -485,6 +490,7 @@ function gateCafePage<T>(
         displayTotal: total,
         totalPages,
         teaserSlots: Math.max(0, pageCapacity - visible.length),
+        previewTotal: GUEST_VISIBLE_CAFES,
       },
     },
   };
