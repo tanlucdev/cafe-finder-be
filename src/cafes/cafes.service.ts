@@ -23,7 +23,7 @@ export class CafesService {
     private routeDistance: RouteDistanceService,
   ) {}
 
-  async findAll(filter: CafeFilterDto) {
+  async findAll(filter: CafeFilterDto, user?: { id: string }) {
     const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } =
       filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
@@ -68,7 +68,7 @@ export class CafesService {
       ...(and.length && { AND: and }),
     };
 
-    if (!sort || sort === 'popular') return this.findAllPopular(where, locale, page, limit);
+    if (!sort || sort === 'popular') return this.findAllPopular(where, locale, page, limit, user);
 
     const [cafes, total] = await Promise.all([
       this.prisma.cafe.findMany({
@@ -86,15 +86,7 @@ export class CafesService {
       this.serializeListCafe(cafe, locale, 0, totalByCafe.get(cafe.id) ?? 0),
     );
 
-    return {
-      data,
-      meta: {
-        total,
-        page,
-        limit,
-        totalPages: Math.ceil(total / limit),
-      },
-    };
+    return gateCafePage(data, total, page, limit, user);
   }
 
   private async findAllPopular(
@@ -102,6 +94,7 @@ export class CafesService {
     locale: string | undefined,
     page: number,
     limit: number,
+    user?: { id: string },
   ) {
     const [cafes, total] = await Promise.all([
       this.prisma.cafe.findMany({
@@ -134,10 +127,7 @@ export class CafesService {
         ),
       );
 
-    return {
-      data,
-      meta: { total, page, limit, totalPages: Math.ceil(total / limit) },
-    };
+    return gateCafePage(data, total, page, limit, user);
   }
 
   private serializeListCafe(cafe: any, locale?: string, weeklyVoteCount = 0, voteCount = 0) {
@@ -333,11 +323,12 @@ export class CafesService {
       SELECT COUNT(*)::bigint AS total FROM cafes c WHERE ${where}
     `;
     const count = Number(total);
-    const readableTotal = user
-      ? count
-      : Math.min(count, Math.max(count ? 1 : 0, Math.ceil(count * 0.3)));
     const pageStart = (page - 1) * limit;
-    const readableOnPage = Math.max(0, Math.min(limit, readableTotal - pageStart));
+    const readableOnPage = user
+      ? Math.max(0, Math.min(limit, count - pageStart))
+      : page === 1
+        ? Math.min(GUEST_VISIBLE_CAFES, count, limit)
+        : 0;
     const rows = readableOnPage
       ? await this.prisma.$queryRaw<any[]>(
           discoveryPageQuery(filter, where, pageStart, readableOnPage),
@@ -352,27 +343,7 @@ export class CafesService {
       ),
     );
     const data = await this.enrichDiscoveryRoutes(cafes, filter);
-    const meta: {
-      total: number;
-      page: number;
-      limit: number;
-      totalPages: number;
-      discovery?: { displayTotal: number; totalPages: number; teaserSlots: number };
-    } = { total: count, page, limit, totalPages: Math.ceil(count / limit) };
-
-    if (user) return { data, meta };
-
-    return {
-      data,
-      meta: {
-        ...meta,
-        discovery: {
-          displayTotal: count,
-          totalPages: meta.totalPages,
-          teaserSlots: Math.max(0, limit - data.length),
-        },
-      },
-    };
+    return gateCafePage(data, count, page, limit, user);
   }
 
   private async enrichDiscoveryRoutes(cafes: any[], filter: CafeFilterDto) {
@@ -481,6 +452,43 @@ export class CafesService {
 
     return cafes.map((cafe) => serializeLocalizedCafe(cafe, locale));
   }
+}
+
+// ponytail: three guest previews are current product policy; promote this to plan configuration only for multiple access tiers.
+const GUEST_VISIBLE_CAFES = 3;
+
+type CafePageMeta = {
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  discovery?: { displayTotal: number; totalPages: number; teaserSlots: number };
+};
+
+function gateCafePage<T>(
+  data: T[],
+  total: number,
+  page: number,
+  limit: number,
+  user?: { id: string },
+): { data: T[]; meta: CafePageMeta } {
+  const totalPages = Math.ceil(total / limit);
+  const meta = { total, page, limit, totalPages };
+  if (user) return { data, meta };
+
+  const visible = page === 1 ? data.slice(0, GUEST_VISIBLE_CAFES) : [];
+  const pageCapacity = Math.max(0, Math.min(limit, total - (page - 1) * limit));
+  return {
+    data: visible,
+    meta: {
+      ...meta,
+      discovery: {
+        displayTotal: total,
+        totalPages,
+        teaserSlots: Math.max(0, pageCapacity - visible.length),
+      },
+    },
+  };
 }
 
 function discoveryWhere(filter: CafeFilterDto) {

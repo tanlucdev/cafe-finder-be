@@ -34,8 +34,8 @@ export class CafesController {
   @UseGuards(OptionalJwtAuthGuard)
   @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'List cafes with filters and pagination' })
-  findAll(@Query() filter: CafeFilterDto) {
-    return this.cafesService.findAll(filter);
+  findAll(@Query() filter: CafeFilterDto, @CurrentUser() user?: { id: string }) {
+    return this.cafesService.findAll(filter, user);
   }
 
   @Get('nearby/discovery')

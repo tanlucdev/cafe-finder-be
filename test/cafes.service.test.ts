@@ -75,13 +75,16 @@ test('findAll uses districts before legacy district for exact matching, count, s
     },
   });
 
-  const result = await service.findAll({
-    districts: ['Quận 1', 'Quận 3'],
-    district: 'Quận 2',
-    sort: 'newest',
-    page: 2,
-    limit: 1,
-  });
+  const result = await service.findAll(
+    {
+      districts: ['Quận 1', 'Quận 3'],
+      district: 'Quận 2',
+      sort: 'newest',
+      page: 2,
+      limit: 1,
+    },
+    { id: 'member-1' },
+  );
   const where = {
     isPublished: true,
     isHidden: false,
@@ -168,7 +171,7 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
     },
   });
 
-  const result = await service.findAll({ sort: 'rating', page: 2, limit: 9 });
+  const result = await service.findAll({ sort: 'rating', page: 2, limit: 9 }, { id: 'member-1' });
 
   assert.equal(findManyArgs.skip, 9);
   assert.equal(findManyArgs.take, 9);
@@ -205,6 +208,29 @@ test('guest discovery returns three readable cafes and six locked slots for tota
     teaserSlots: 6,
     totalPages: 1,
   });
+});
+
+test('guest list gates the first page after filtering and locks all later pages', async () => {
+  const cafes = Array.from({ length: 18 }, (_, index) => ({
+    id: String(index),
+    _count: { savedCafes: 0 },
+  }));
+  const { service } = createService({
+    prisma: {
+      cafe: {
+        findMany: async () => cafes,
+        count: async () => cafes.length,
+      },
+    },
+  });
+
+  const firstPage = await service.findAll({ search: 'coffee', sort: 'rating', limit: 9 });
+  const secondPage = await service.findAll({ search: 'coffee', sort: 'rating', page: 2, limit: 9 });
+
+  assert.equal(firstPage.data.length, 3);
+  assert.deepEqual(firstPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 6 });
+  assert.equal(secondPage.data.length, 0);
+  assert.deepEqual(secondPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 9 });
 });
 
 test('member discovery receives all records and no discovery metadata', async () => {
