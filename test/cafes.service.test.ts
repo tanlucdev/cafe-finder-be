@@ -183,34 +183,33 @@ test('findAll passes rating sort to Prisma before pagination', async () => {
   assert.deepEqual(result.meta, { total: 1, page: 2, limit: 9, totalPages: 1 });
 });
 
-test('guest discovery returns three readable cafes and six locked slots for total nine', async () => {
+test('guest discovery allows a full first page before locking later results', async () => {
   const queries: any[] = [];
   const { service } = createService({
     prisma: {
       $queryRaw: async (query: any) => {
         queries.push(query);
         return queries.length === 1
-          ? [{ total: 9n }]
-          : [
-              { id: 'one', _count: { savedCafes: 0 } },
-              { id: 'two', _count: { savedCafes: 0 } },
-              { id: 'three', _count: { savedCafes: 0 } },
-            ];
+          ? [{ total: 18n }]
+          : Array.from({ length: 9 }, (_, index) => ({
+              id: String(index),
+              _count: { savedCafes: 0 },
+            }));
       },
     },
   });
   const guest = await service.findNearbyDiscovery({ lat: 10.77, lng: 106.7, limit: 9 });
 
   assert.equal(queries.length, 2);
-  assert.equal(guest.data.length, 3);
+  assert.equal(guest.data.length, 9);
   assert.deepEqual(guest.meta.discovery, {
-    displayTotal: 9,
-    teaserSlots: 6,
-    totalPages: 1,
+    displayTotal: 18,
+    teaserSlots: 0,
+    totalPages: 2,
   });
 });
 
-test('guest list gates the first page after filtering and locks all later pages', async () => {
+test('guest list allows fifteen filtered cafes before locking later results', async () => {
   const cafes = Array.from({ length: 18 }, (_, index) => ({
     id: String(index),
     _count: { savedCafes: 0 },
@@ -218,7 +217,8 @@ test('guest list gates the first page after filtering and locks all later pages'
   const { service } = createService({
     prisma: {
       cafe: {
-        findMany: async () => cafes,
+        findMany: async ({ skip = 0, take = cafes.length }: { skip?: number; take?: number }) =>
+          cafes.slice(skip, skip + take),
         count: async () => cafes.length,
       },
     },
@@ -227,10 +227,10 @@ test('guest list gates the first page after filtering and locks all later pages'
   const firstPage = await service.findAll({ search: 'coffee', sort: 'rating', limit: 9 });
   const secondPage = await service.findAll({ search: 'coffee', sort: 'rating', page: 2, limit: 9 });
 
-  assert.equal(firstPage.data.length, 3);
-  assert.deepEqual(firstPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 6 });
-  assert.equal(secondPage.data.length, 0);
-  assert.deepEqual(secondPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 9 });
+  assert.equal(firstPage.data.length, 9);
+  assert.deepEqual(firstPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 0 });
+  assert.equal(secondPage.data.length, 6);
+  assert.deepEqual(secondPage.meta.discovery, { displayTotal: 18, totalPages: 2, teaserSlots: 3 });
 });
 
 test('member discovery receives all records and no discovery metadata', async () => {

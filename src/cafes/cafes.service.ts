@@ -326,9 +326,7 @@ export class CafesService {
     const pageStart = (page - 1) * limit;
     const readableOnPage = user
       ? Math.max(0, Math.min(limit, count - pageStart))
-      : page === 1
-        ? Math.min(GUEST_VISIBLE_CAFES, count, limit)
-        : 0;
+      : Math.max(0, Math.min(limit, count - pageStart, GUEST_VISIBLE_CAFES - pageStart));
     const rows = readableOnPage
       ? await this.prisma.$queryRaw<any[]>(
           discoveryPageQuery(filter, where, pageStart, readableOnPage),
@@ -454,8 +452,8 @@ export class CafesService {
   }
 }
 
-// ponytail: three guest previews are current product policy; promote this to plan configuration only for multiple access tiers.
-const GUEST_VISIBLE_CAFES = 3;
+// ponytail: fifteen guest previews are current product policy; promote this to plan configuration only for multiple access tiers.
+const GUEST_VISIBLE_CAFES = 15;
 
 type CafePageMeta = {
   total: number;
@@ -476,7 +474,8 @@ function gateCafePage<T>(
   const meta = { total, page, limit, totalPages };
   if (user) return { data, meta };
 
-  const visible = page === 1 ? data.slice(0, GUEST_VISIBLE_CAFES) : [];
+  const pageStart = (page - 1) * limit;
+  const visible = data.slice(0, Math.max(0, GUEST_VISIBLE_CAFES - pageStart));
   const pageCapacity = Math.max(0, Math.min(limit, total - (page - 1) * limit));
   return {
     data: visible,
