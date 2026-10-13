@@ -18,6 +18,7 @@ import { CafesService } from './cafes.service';
 import { CafeFilterDto } from './dto/cafe-filter.dto';
 import { CafeVotesService } from './cafe-votes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('Cafes')
@@ -30,10 +31,19 @@ export class CafesController {
   ) {}
 
   @Get()
-  @Header('Cache-Control', 'public, max-age=60, stale-while-revalidate=300')
+  @UseGuards(OptionalJwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
   @ApiOperation({ summary: 'List cafes with filters and pagination' })
   findAll(@Query() filter: CafeFilterDto) {
     return this.cafesService.findAll(filter);
+  }
+
+  @Get('nearby/discovery')
+  @UseGuards(OptionalJwtAuthGuard)
+  @Header('Cache-Control', 'private, no-store')
+  @ApiOperation({ summary: 'Find nearby cafes with discovery access limits' })
+  findNearbyDiscovery(@Query() filter: CafeFilterDto, @CurrentUser() user?: { id: string }) {
+    return this.cafesService.findNearbyDiscovery(filter, user);
   }
 
   // Specific routes must be placed BEFORE /:slug
