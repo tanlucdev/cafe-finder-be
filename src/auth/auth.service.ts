@@ -38,10 +38,17 @@ export class AuthService {
         registrationMethod: 'EMAIL',
         displayName: dto.displayName,
       },
-      select: { id: true, email: true, displayName: true, role: true, createdAt: true },
+      select: {
+        id: true,
+        email: true,
+        displayName: true,
+        role: true,
+        createdAt: true,
+        authVersion: true,
+      },
     });
 
-    const token = this.signAuthToken(user.id, user.role);
+    const token = this.signAuthToken(user.id, user.role, user.authVersion);
     return { token, user };
   }
 
@@ -55,6 +62,7 @@ export class AuthService {
         displayName: true,
         role: true,
         isHidden: true,
+        authVersion: true,
         createdAt: true,
       },
     });
@@ -72,7 +80,7 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const token = this.signAuthToken(user.id, user.role);
+    const token = this.signAuthToken(user.id, user.role, user.authVersion);
     return { token, user: mapAuthUser(user) };
   }
 
@@ -111,64 +119,91 @@ export class AuthService {
     }
 
     const passwordHash = await bcrypt.hash(dto.newPassword, 10);
-    await this.prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { passwordHash, authVersion: { increment: 1 } },
+    });
 
     return { message: 'Password changed successfully' };
   }
 
-  async forgotPassword(email: string) {
+  async forgotPassword(email: string, locale: 'vi' | 'en') {
     const user = await this.prisma.user.findUnique({ where: { email } });
+    const message = forgotPasswordMessage(locale);
 
-    // Always return success to avoid email enumeration
-    if (!user || user.isHidden)
-      return { message: 'If the email exists, you will receive instructions via email' };
+    // Passwordless Google accounts deliberately stay outside this flow.
+    if (!user || user.isHidden || !user.passwordHash) return { message };
 
-    await this.prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+    const token = crypto.randomBytes(32).toString('base64url');
+    const tokenHash = hashResetToken(token);
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+    const requestBucket = new Date();
+    requestBucket.setSeconds(0, 0);
 
-    const token = crypto.randomUUID();
-    const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+    try {
+      await this.prisma.passwordResetToken.create({
+        data: { tokenHash, userId: user.id, expiresAt, requestBucket },
+      });
+    } catch (error) {
+      if (isUniqueConstraintError(error)) return { message };
+      throw error;
+    }
 
-    await this.prisma.passwordResetToken.create({
-      data: { token, userId: user.id, expiresAt },
-    });
+    try {
+      await this.emailService.sendPasswordReset(user.email, token, locale);
+    } catch {
+      // Always preserve the enumeration-safe response when email delivery fails.
+    }
 
-    await this.emailService.sendPasswordReset(user.email, token);
-
-    return { message: 'If the email exists, you will receive instructions via email' };
+    return { message };
   }
 
   async resetPassword(token: string, newPassword: string) {
-    const resetToken = await this.prisma.passwordResetToken.findUnique({
-      where: { token },
-      include: { user: { select: { isHidden: true } } },
-    });
-
-    if (
-      !resetToken ||
-      resetToken.used ||
-      resetToken.expiresAt < new Date() ||
-      resetToken.user.isHidden
-    ) {
-      throw new BadRequestException('Token is invalid or has expired');
-    }
-
+    const tokenHash = hashResetToken(token);
     const passwordHash = await bcrypt.hash(newPassword, 10);
 
-    await this.prisma.$transaction([
-      this.prisma.user.update({
-        where: { id: resetToken.userId },
-        data: { passwordHash },
-      }),
-      this.prisma.passwordResetToken.update({
-        where: { token },
+    await this.prisma.$transaction(async (tx) => {
+      const resetToken = await tx.passwordResetToken.findUnique({
+        where: { tokenHash },
+        select: { userId: true },
+      });
+      if (!resetToken) throw new BadRequestException('Token is invalid or has expired');
+
+      const claimed = await tx.passwordResetToken.updateMany({
+        where: {
+          tokenHash,
+          used: false,
+          expiresAt: { gt: new Date() },
+          user: { isHidden: false },
+        },
         data: { used: true },
-      }),
-    ]);
+      });
+      if (claimed.count !== 1) throw new BadRequestException('Token is invalid or has expired');
+
+      await tx.user.update({
+        where: { id: resetToken.userId },
+        data: { passwordHash, authVersion: { increment: 1 } },
+      });
+    });
 
     return { message: 'Password updated successfully' };
   }
 
-  signAuthToken(userId: string, role: string) {
-    return this.jwtService.sign({ sub: userId, role });
+  signAuthToken(userId: string, role: string, authVersion: number) {
+    return this.jwtService.sign({ sub: userId, role, version: authVersion });
   }
+}
+
+function hashResetToken(token: string) {
+  return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function isUniqueConstraintError(error: unknown) {
+  return typeof error === 'object' && error !== null && 'code' in error && error.code === 'P2002';
+}
+
+function forgotPasswordMessage(locale: 'vi' | 'en') {
+  return locale === 'vi'
+    ? 'Nếu tài khoản phù hợp tồn tại, bạn sẽ nhận được hướng dẫn qua email'
+    : 'If an eligible account exists, you will receive instructions via email';
 }

@@ -31,6 +31,7 @@ test('AuthService rejects hidden users on login', async () => {
     displayName: true,
     role: true,
     isHidden: true,
+    authVersion: true,
     createdAt: true,
   });
 });
@@ -82,13 +83,40 @@ test('AuthService rejects passwordless users on password login', async () => {
   );
 });
 
-test('JwtStrategy returns JWT payload user without Prisma lookup', async () => {
-  const strategy = new JwtStrategy({ get: () => 'test-secret' } as any);
+test('JwtStrategy only accepts the current user auth version', async () => {
+  let findFirstArgs: any;
+  const strategy = new JwtStrategy(
+    { get: () => 'test-secret' } as any,
+    {
+      user: {
+        findFirst: async (args: any) => {
+          findFirstArgs = args;
+          return { id: 'user-1', role: 'USER' };
+        },
+      },
+    } as any,
+  );
 
-  assert.deepEqual(await strategy.validate({ sub: 'user-1', role: 'USER' }), {
+  assert.deepEqual(await strategy.validate({ sub: 'user-1', role: 'ADMIN', version: 2 }), {
     id: 'user-1',
     role: 'USER',
   });
+  assert.deepEqual(findFirstArgs.where, { id: 'user-1', authVersion: 2, isHidden: false });
+});
+
+test('JwtStrategy treats pre-version JWTs as version zero', async () => {
+  let findFirstArgs: any;
+  const strategy = new JwtStrategy(
+    { get: () => 'test-secret' } as any,
+    {
+      user: {
+        findFirst: async (args: any) => ((findFirstArgs = args), { id: 'user-1', role: 'USER' }),
+      },
+    } as any,
+  );
+
+  await strategy.validate({ sub: 'user-1', role: 'USER' });
+  assert.deepEqual(findFirstArgs.where, { id: 'user-1', authVersion: 0, isHidden: false });
 });
 
 test('parseCookies reads URL encoded auth cookie values', () => {

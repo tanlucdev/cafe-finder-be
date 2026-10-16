@@ -57,7 +57,10 @@ export class GoogleOAuthService {
       displayName: payload.name ?? null,
       avatarUrl: payload.picture ?? null,
     });
-    return { token: this.authService.signAuthToken(user.id, user.role), user: mapAuthUser(user) };
+    return {
+      token: this.authService.signAuthToken(user.id, user.role, user.authVersion),
+      user: mapAuthUser(user),
+    };
   }
 
   private async upsertGoogleUser(data: {
