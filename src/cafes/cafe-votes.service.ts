@@ -34,7 +34,10 @@ export class CafeVotesService {
     if (!cafe) throw new NotFoundException('Cafe not found');
 
     try {
-      await this.prisma.cafeVote.create({ data: { userId, cafeId } });
+      await this.prisma.$transaction(async (tx) => {
+        await tx.cafeVote.create({ data: { userId, cafeId } });
+        await tx.cafeVoteEvent.create({ data: { action: 'VOTE', userId, cafeId } });
+      });
     } catch (error: any) {
       if (error?.code !== 'P2002') throw error;
     }
@@ -55,7 +58,10 @@ export class CafeVotesService {
     });
     if (!cafe) throw new NotFoundException('Cafe not found');
 
-    await this.prisma.cafeVote.deleteMany({ where: { userId, cafeId } });
+    await this.prisma.$transaction(async (tx) => {
+      const { count } = await tx.cafeVote.deleteMany({ where: { userId, cafeId } });
+      if (count) await tx.cafeVoteEvent.create({ data: { action: 'UNVOTE', userId, cafeId } });
+    });
 
     const { start, end } = CafeVotesService.weekRange();
     const [weeklyVoteCount, voteCount] = await Promise.all([
