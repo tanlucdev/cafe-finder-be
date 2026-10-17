@@ -70,6 +70,59 @@ test('AdminUsersService paginates users without selecting passwordHash', async (
   });
 });
 
+test('AdminUsersService filters registration dates in UTC+7 without changing global stats', async () => {
+  const calls: { findMany?: any; count?: any; groupBy?: any } = {};
+  const prisma = {
+    user: {
+      findMany: async (args: any) => {
+        calls.findMany = args;
+        return [];
+      },
+      count: async (args: any) => {
+        calls.count = args;
+        return 0;
+      },
+      groupBy: async (args: any) => {
+        calls.groupBy = args;
+        return [];
+      },
+    },
+  };
+  const service = new AdminUsersService(prisma as any);
+
+  const empty = await service.listUsers(3, 5, undefined, undefined, '2026-10-14', '2026-10-16');
+  const range = {
+    gte: new Date('2026-10-13T17:00:00.000Z'),
+    lt: new Date('2026-10-16T17:00:00.000Z'),
+  };
+  assert.deepEqual(calls.findMany.where.createdAt, range);
+  assert.deepEqual(calls.count.where.createdAt, range);
+  assert.equal(calls.findMany.skip, 10);
+  assert.deepEqual(empty, {
+    data: [],
+    meta: { total: 0, page: 3, limit: 5, totalPages: 0, registrationMethods: { EMAIL: 0, GOOGLE: 0, UNKNOWN: 0 } },
+  });
+  assert.deepEqual(calls.groupBy.where, { isHidden: false });
+
+  await service.listUsers(1, 10, undefined, undefined, '2026-10-14', '2026-10-14');
+  assert.deepEqual(calls.findMany.where.createdAt, {
+    gte: new Date('2026-10-13T17:00:00.000Z'),
+    lt: new Date('2026-10-14T17:00:00.000Z'),
+  });
+});
+
+test('AdminUsersService rejects invalid or reversed registration dates', async () => {
+  const service = new AdminUsersService({ user: {} } as any);
+  await assert.rejects(
+    () => service.listUsers(1, 10, undefined, undefined, '2026-02-30'),
+    /fromDate must be a valid calendar date/,
+  );
+  await assert.rejects(
+    () => service.listUsers(1, 10, undefined, undefined, '2026-10-15', '2026-10-14'),
+    /fromDate must not be after toDate/,
+  );
+});
+
 test('AdminUsersService hides users but blocks self hide and last admin hide', async () => {
   const updates: any[] = [];
   const prisma = {

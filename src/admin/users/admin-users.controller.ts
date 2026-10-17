@@ -19,13 +19,17 @@ export class AdminUsersController {
   @ApiOperation({ summary: 'List users with pagination' })
   @ApiQuery({ name: 'page', required: false, type: Number })
   @ApiQuery({ name: 'limit', required: false, type: Number })
+  @ApiQuery({ name: 'fromDate', required: false, type: String, description: 'YYYY-MM-DD in Asia/Ho_Chi_Minh' })
+  @ApiQuery({ name: 'toDate', required: false, type: String, description: 'YYYY-MM-DD in Asia/Ho_Chi_Minh' })
   listUsers(
     @Query('page') page: number = 1,
     @Query('limit') limit: number = 10,
     @Query('search') search?: string,
     @Query('role') role?: 'ADMIN' | 'USER',
+    @Query('fromDate') fromDate?: string,
+    @Query('toDate') toDate?: string,
   ) {
-    return this.adminUsersService.listUsers(+page, +limit, search, role);
+    return this.adminUsersService.listUsers(+page, +limit, search, role, fromDate, toDate);
   }
 
   @Patch(':id/hide')

@@ -6,17 +6,50 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
 
+function vietnamDayStart(value: string, name: 'fromDate' | 'toDate') {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) throw new BadRequestException(`${name} must use YYYY-MM-DD`);
+  const [year, month, day] = match.slice(1).map(Number);
+  const utcDay = new Date(Date.UTC(year, month - 1, day));
+  if (
+    utcDay.getUTCFullYear() !== year ||
+    utcDay.getUTCMonth() !== month - 1 ||
+    utcDay.getUTCDate() !== day
+  ) {
+    throw new BadRequestException(`${name} must be a valid calendar date`);
+  }
+  return new Date(utcDay.getTime() - 7 * 60 * 60 * 1000);
+}
+
 @Injectable()
 export class AdminUsersService {
   constructor(private prisma: PrismaService) {}
 
-  async listUsers(page: number = 1, limit: number = 10, search?: string, role?: 'ADMIN' | 'USER') {
+  async listUsers(
+    page: number = 1,
+    limit: number = 10,
+    search?: string,
+    role?: 'ADMIN' | 'USER',
+    fromDate?: string,
+    toDate?: string,
+  ) {
     page = Number.isInteger(page) && page > 0 ? page : 1;
     limit = Number.isInteger(limit) && limit > 0 ? Math.min(limit, 100) : 10;
     const q = search?.trim();
+    const from = fromDate ? vietnamDayStart(fromDate, 'fromDate') : undefined;
+    const to = toDate ? vietnamDayStart(toDate, 'toDate') : undefined;
+    if (from && to && from > to) throw new BadRequestException('fromDate must not be after toDate');
     const where = {
       isHidden: false,
       ...(role ? { role } : {}),
+      ...((from || to)
+        ? {
+            createdAt: {
+              ...(from ? { gte: from } : {}),
+              ...(to ? { lt: new Date(to.getTime() + 24 * 60 * 60 * 1000) } : {}),
+            },
+          }
+        : {}),
       ...(q
         ? {
             OR: [
