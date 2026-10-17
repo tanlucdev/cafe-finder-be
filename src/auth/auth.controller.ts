@@ -115,7 +115,7 @@ export class AuthController {
   @Post('forgot-password')
   @ApiOperation({ summary: 'Request password reset — sends a link via email' })
   forgotPassword(@Body() dto: ForgotPasswordDto) {
-    return this.authService.forgotPassword(dto.email);
+    return this.authService.forgotPassword(dto.email, dto.locale ?? 'vi');
   }
 
   @Post('reset-password')
