@@ -6,6 +6,7 @@ import { AdminSubmissionsModule } from './submissions/admin-submissions.module';
 import { AdminUsersModule } from './users/admin-users.module';
 import { AdminFeedbackModule } from './feedback/admin-feedback.module';
 import { AdminReviewsModule } from './reviews/admin-reviews.module';
+import { AdminVotesModule } from './votes/admin-votes.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { AdminReviewsModule } from './reviews/admin-reviews.module';
     AdminStatsModule,
     AdminFeedbackModule,
     AdminReviewsModule,
+    AdminVotesModule,
   ],
 })
 export class AdminModule {}

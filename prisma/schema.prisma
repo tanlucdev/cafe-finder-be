@@ -26,6 +26,7 @@ model User {
   savedCafes          SavedCafe[]
   savedCollections    SavedCollection[]
   cafeVotes           CafeVote[]
+  cafeVoteEvents      CafeVoteEvent[]
   visitedCafes        VisitedCafe[]
   cafeReviews         CafeReview[]
   quizResults         QuizResult[]
@@ -92,6 +93,7 @@ model Cafe {
   updatedAt         DateTime                  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
   savedCafes        SavedCafe[]
   cafeVotes         CafeVote[]
+  cafeVoteEvents    CafeVoteEvent[]
   visitedCafes      VisitedCafe[]
   viewEvents        CafeViewEvent[]
   feedback          Feedback[]
@@ -160,6 +162,19 @@ model CafeVote {
   @@index([createdAt], map: "idx_cafe_votes_created_at")
   @@index([cafeId, createdAt], map: "idx_cafe_votes_cafe_created_at")
   @@map("cafe_votes")
+}
+model CafeVoteEvent {
+  id        String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  action    CafeVoteAction
+  userId    String          @map("user_id") @db.Uuid
+  cafeId    String          @map("cafe_id") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at") @db.Timestamptz(6)
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe      Cafe            @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  @@index([cafeId, createdAt], map: "idx_cafe_vote_events_cafe_created_at")
+  @@index([userId, createdAt], map: "idx_cafe_vote_events_user_created_at")
+  @@index([action, createdAt], map: "idx_cafe_vote_events_action_created_at")
+  @@map("cafe_vote_events")
 }
 model VisitedCafe {
   id        String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
@@ -329,6 +344,11 @@ enum FeedbackStatus {
   NEW      @map("new")
   REVIEWED @map("reviewed")
   ARCHIVED @map("archived")
+}
+
+enum CafeVoteAction {
+  VOTE
+  UNVOTE
 }
 
 enum PriceRange {
