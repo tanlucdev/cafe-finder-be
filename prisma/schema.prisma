@@ -29,6 +29,7 @@ model User {
   cafeVotes           CafeVote[]
   cafeVoteEvents      CafeVoteEvent[]
   visitedCafes        VisitedCafe[]
+  recentlyViewedCafes RecentlyViewedCafe[]
   cafeReviews         CafeReview[]
   quizResults         QuizResult[]
   @@map("users")
@@ -99,6 +100,7 @@ model Cafe {
   cafeVotes         CafeVote[]
   cafeVoteEvents    CafeVoteEvent[]
   visitedCafes      VisitedCafe[]
+  recentlyViewedCafes RecentlyViewedCafe[]
   viewEvents        CafeViewEvent[]
   feedback          Feedback[]
   reviews           CafeReview[]
@@ -190,6 +192,17 @@ model VisitedCafe {
   @@unique([userId, cafeId])
   @@index([cafeId], map: "idx_visited_cafes_cafe_id")
   @@map("visited_cafes")
+}
+model RecentlyViewedCafe {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  cafeId       String   @map("cafe_id") @db.Uuid
+  lastViewedAt DateTime @default(now()) @map("last_viewed_at") @db.Timestamptz(6)
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  cafe         Cafe     @relation(fields: [cafeId], references: [id], onDelete: Cascade)
+  @@unique([userId, cafeId])
+  @@index([userId, lastViewedAt], map: "idx_recently_viewed_cafes_user_last_viewed_at")
+  @@map("recently_viewed_cafes")
 }
 model CafeSubmission {
   id            String           @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
