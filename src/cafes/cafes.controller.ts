@@ -11,7 +11,7 @@ import {
   Res,
   UseGuards,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiTags, ApiOperation, ApiQuery } from '@nestjs/swagger';
 import { JwtService } from '@nestjs/jwt';
 import { Request, Response } from 'express';
 import { CafesService } from './cafes.service';
@@ -20,6 +20,7 @@ import { CafeVotesService } from './cafe-votes.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OptionalJwtAuthGuard } from '../auth/guards/optional-jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import { RecentlyViewedService } from '../recently-viewed/recently-viewed.service';
 
 @ApiTags('Cafes')
 @Controller('cafes')
@@ -28,6 +29,7 @@ export class CafesController {
     private readonly cafesService: CafesService,
     private readonly cafeVotesService: CafeVotesService,
     private readonly jwtService: JwtService,
+    private readonly recentlyViewedService: RecentlyViewedService,
   ) {}
 
   @Get()
@@ -129,11 +131,14 @@ export class CafesController {
   }
 
   @Post(':id/view')
+  @UseGuards(OptionalJwtAuthGuard)
+  @ApiBearerAuth()
   @ApiOperation({ summary: 'Track a public cafe detail view' })
   async trackView(
     @Param('id') cafeId: string,
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
+    @CurrentUser() user?: { id: string },
   ) {
     const cookies = parseCookieHeader(req.headers.cookie);
     const userVisitorKey = await this.getUserVisitorKey(req, cookies);
@@ -150,7 +155,9 @@ export class CafesController {
       });
     }
 
-    return this.cafesService.trackView(cafeId, userVisitorKey ?? `anon:${anonId}`);
+    const result = await this.cafesService.trackView(cafeId, userVisitorKey ?? `anon:${anonId}`);
+    if (user) await this.recentlyViewedService.recordView(user.id, cafeId);
+    return result;
   }
 
   private async getUserVisitorKey(req: Request, cookies: Record<string, string>) {

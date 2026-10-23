@@ -5,6 +5,7 @@ import { CafeVotesService } from '../src/cafes/cafe-votes.service';
 
 function createService(overrides: any = {}) {
   const votes: any[] = [];
+  const events: any[] = [];
   const published = new Set(overrides.published ?? ['cafe-1', 'cafe-2']);
   const prisma = {
     cafe: {
@@ -37,14 +38,22 @@ function createService(overrides: any = {}) {
           .filter((vote) => vote.userId === where.userId)
           .map((vote) => ({ cafeId: vote.cafeId })),
     },
+    cafeVoteEvent: {
+      create: async ({ data }: any) => {
+        events.push({ ...data, createdAt: new Date() });
+        return data;
+      },
+    },
     ...overrides.prisma,
   };
+  prisma.$transaction =
+    overrides.prisma?.$transaction ?? (async (callback: any) => callback(prisma));
 
-  return { service: new CafeVotesService(prisma as any), votes, prisma };
+  return { service: new CafeVotesService(prisma as any), votes, events, prisma };
 }
 
-test('vote creates a cafe vote', async () => {
-  const { service, votes } = createService();
+test('vote creates a cafe vote event', async () => {
+  const { service, votes, events } = createService();
 
   assert.deepEqual(await service.vote('user-1', 'cafe-1'), {
     cafeId: 'cafe-1',
@@ -53,10 +62,14 @@ test('vote creates a cafe vote', async () => {
     voted: true,
   });
   assert.equal(votes.length, 1);
+  assert.deepEqual(
+    events.map((event) => event.action),
+    ['VOTE'],
+  );
 });
 
 test('duplicate vote for same cafe is idempotent', async () => {
-  const { service, votes } = createService();
+  const { service, votes, events } = createService();
 
   await service.vote('user-1', 'cafe-1');
   assert.deepEqual(await service.vote('user-1', 'cafe-1'), {
@@ -66,6 +79,7 @@ test('duplicate vote for same cafe is idempotent', async () => {
     voted: true,
   });
   assert.equal(votes.length, 1);
+  assert.equal(events.length, 1);
 });
 
 test('same user can vote multiple cafes', async () => {
@@ -77,8 +91,8 @@ test('same user can vote multiple cafes', async () => {
   assert.deepEqual(votes.map((vote) => vote.cafeId).sort(), ['cafe-1', 'cafe-2']);
 });
 
-test('unvote removes current user cafe vote', async () => {
-  const { service, votes } = createService();
+test('unvote records one event only when a vote exists', async () => {
+  const { service, votes, events } = createService();
 
   await service.vote('user-1', 'cafe-1');
   assert.deepEqual(await service.unvote('user-1', 'cafe-1'), {
@@ -88,6 +102,12 @@ test('unvote removes current user cafe vote', async () => {
     voted: false,
   });
   assert.equal(votes.length, 0);
+  assert.deepEqual(
+    events.map((event) => event.action),
+    ['VOTE', 'UNVOTE'],
+  );
+  await service.unvote('user-1', 'cafe-1');
+  assert.equal(events.length, 2);
 });
 
 test('missing or unpublished cafe fails', async () => {
