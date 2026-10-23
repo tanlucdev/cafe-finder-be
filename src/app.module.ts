@@ -12,6 +12,7 @@ import { VisitedModule } from './visited/visited.module';
 import { QuizModule } from './quiz/quiz.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { ReviewsModule } from './reviews/reviews.module';
+import { RecentlyViewedModule } from './recently-viewed/recently-viewed.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -29,6 +30,7 @@ import { HealthController } from './health.controller';
     QuizModule,
     FeedbackModule,
     ReviewsModule,
+    RecentlyViewedModule,
   ],
   controllers: [HealthController],
 })
