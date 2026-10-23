@@ -100,7 +100,13 @@ test('AdminUsersService filters registration dates in UTC+7 without changing glo
   assert.equal(calls.findMany.skip, 10);
   assert.deepEqual(empty, {
     data: [],
-    meta: { total: 0, page: 3, limit: 5, totalPages: 0, registrationMethods: { EMAIL: 0, GOOGLE: 0, UNKNOWN: 0 } },
+    meta: {
+      total: 0,
+      page: 3,
+      limit: 5,
+      totalPages: 0,
+      registrationMethods: { EMAIL: 0, GOOGLE: 0, UNKNOWN: 0 },
+    },
   });
   assert.deepEqual(calls.groupBy.where, { isHidden: false });
 
@@ -185,6 +191,13 @@ test('AdminStatsService preserves existing fields and returns digest counts', as
         if (args?.where?.isFeatured) return 3;
         return 10;
       },
+      findMany: async ({ where }: any) =>
+        where.id.in.map((id: string) => ({
+          id,
+          name: `Cafe ${id}`,
+          district: null,
+          coverImage: null,
+        })),
     },
     cafeSubmission: {
       count: async (args?: any) => {
@@ -201,6 +214,16 @@ test('AdminStatsService preserves existing fields and returns digest counts', as
     blogPost: { count: async (args?: any) => (args?.where?.isPublished ? 4 : 1) },
     feedback: { count: async (args?: any) => (args?.where?.status ? 9 : 6) },
     cafeReview: { count: async () => 7 },
+    cafeVote: {
+      count: async () => 11,
+      groupBy: async (args: any) => {
+        if (args.where.createdAt?.gte?.toISOString() === '2026-09-21T17:00:00.000Z') {
+          return [{ cafeId: 'today', _count: { cafeId: 11 } }];
+        }
+        if (args.where.createdAt) return [{ cafeId: 'weekly', _count: { cafeId: 5 } }];
+        return [{ cafeId: 'all-time', _count: { cafeId: 99 } }];
+      },
+    },
   };
   const service = new AdminStatsService(prisma as any);
 
@@ -230,6 +253,27 @@ test('AdminStatsService preserves existing fields and returns digest counts', as
       visible_reviews: 7,
       hidden_reviews: 7,
     },
+    votes: {
+      new_votes: 11,
+      newly_voted_cafes_total: 1,
+      newly_voted_cafes: [
+        { id: 'today', name: 'Cafe today', district: null, coverImage: null, votes: 11 },
+      ],
+      all_time_leader: {
+        id: 'all-time',
+        name: 'Cafe all-time',
+        district: null,
+        coverImage: null,
+        votes: 99,
+      },
+      weekly_leader: {
+        id: 'weekly',
+        name: 'Cafe weekly',
+        district: null,
+        coverImage: null,
+        votes: 5,
+      },
+    },
   });
   assert.deepEqual(countCalls[3], [
     'submission',
@@ -258,6 +302,7 @@ test('AdminStatsService uses UTC+7 bounds for an explicit date and excludes hidd
     cafeSubmission: { count: count('submission') },
     feedback: { count: count('feedback') },
     cafeReview: { count: count('review') },
+    cafeVote: { count: async () => 0, groupBy: async () => [] },
   };
 
   await new AdminStatsService(prisma as any).getStats('2026-09-22');

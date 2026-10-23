@@ -91,7 +91,9 @@ async function bootstrap() {
         isLocalOrigin(requestOrigin) ||
         /\.vercel\.app$/.test(requestOrigin) ||
         requestHostname === 'cafemaps.net' ||
-        requestHostname.endsWith('.cafemaps.net')
+        requestHostname.endsWith('.cafemaps.net') ||
+        requestHostname === 'cafemaps.vn' ||
+        requestHostname.endsWith('.cafemaps.vn')
       ) {
         callback(null, true);
       } else {

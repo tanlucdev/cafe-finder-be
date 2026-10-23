@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '../../prisma/prisma.service';
+import { CafeVotesService } from '../../cafes/cafe-votes.service';
 
 const vietnamDate = () => {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -28,6 +29,15 @@ const vietnamDayBounds = (date = vietnamDate()) => {
   return { date, start, end: new Date(start.getTime() + 24 * 60 * 60 * 1000) };
 };
 
+type VoteGroup = { cafeId: string; _count: { cafeId: number } };
+
+const voteCafeSelect = {
+  id: true,
+  name: true,
+  district: true,
+  coverImage: true,
+};
+
 @Injectable()
 export class AdminStatsService {
   constructor(private prisma: PrismaService) {}
@@ -35,6 +45,9 @@ export class AdminStatsService {
   async getStats(date?: string) {
     const day = vietnamDayBounds(date);
     const createdToday = { createdAt: { gte: day.start, lt: day.end } };
+    const lastWeek = CafeVotesService.weekRange(
+      new Date(day.start.getTime() + 12 * 60 * 60 * 1000),
+    );
     const [
       total_cafes,
       published_cafes,
@@ -53,6 +66,10 @@ export class AdminStatsService {
       visible_reviews,
       hidden_reviews,
       feedback_queue,
+      new_votes,
+      today_vote_groups,
+      all_time_vote_groups,
+      weekly_vote_groups,
     ] = await Promise.all([
       this.prisma.cafe.count({ where: { isHidden: false } }),
       this.prisma.cafe.count({ where: { isPublished: true, isHidden: false } }),
@@ -71,6 +88,33 @@ export class AdminStatsService {
       this.prisma.cafeReview.count({ where: { isHidden: false } }),
       this.prisma.cafeReview.count({ where: { isHidden: true } }),
       this.prisma.feedback.count({ where: { status: 'NEW', isHidden: false } }),
+      this.prisma.cafeVote.count({ where: createdToday }),
+      this.prisma.cafeVote.groupBy({
+        by: ['cafeId'],
+        where: { ...createdToday, cafe: { isHidden: false } },
+        _count: { cafeId: true },
+        orderBy: { _count: { cafeId: 'desc' } },
+      }),
+      this.prisma.cafeVote.groupBy({
+        by: ['cafeId'],
+        where: { cafe: { isHidden: false } },
+        _count: { cafeId: true },
+        orderBy: { _count: { cafeId: 'desc' } },
+        take: 1,
+      }),
+      this.prisma.cafeVote.groupBy({
+        by: ['cafeId'],
+        where: { createdAt: { gte: lastWeek.start, lt: lastWeek.end }, cafe: { isHidden: false } },
+        _count: { cafeId: true },
+        orderBy: { _count: { cafeId: 'desc' } },
+        take: 1,
+      }),
+    ]);
+
+    const [newly_voted_cafes, all_time_leader, weekly_leader] = await Promise.all([
+      this.voteCafes(today_vote_groups),
+      this.voteCafes(all_time_vote_groups).then(([cafe]) => cafe ?? null),
+      this.voteCafes(weekly_vote_groups).then(([cafe]) => cafe ?? null),
     ]);
 
     return {
@@ -97,6 +141,26 @@ export class AdminStatsService {
         visible_reviews,
         hidden_reviews,
       },
+      votes: {
+        new_votes,
+        newly_voted_cafes_total: newly_voted_cafes.length,
+        newly_voted_cafes,
+        all_time_leader,
+        weekly_leader,
+      },
     };
+  }
+
+  private async voteCafes(groups: VoteGroup[]) {
+    if (!groups.length) return [];
+    const cafes = await this.prisma.cafe.findMany({
+      where: { id: { in: groups.map((group) => group.cafeId) }, isHidden: false },
+      select: voteCafeSelect,
+    });
+    const cafeById = new Map(cafes.map((cafe) => [cafe.id, cafe]));
+    return groups.flatMap((group) => {
+      const cafe = cafeById.get(group.cafeId);
+      return cafe ? [{ ...cafe, votes: group._count.cafeId }] : [];
+    });
   }
 }
