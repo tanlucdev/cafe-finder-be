@@ -175,7 +175,7 @@ export class CafesController {
   }
 
   @Get(':slug')
-  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+  @Header('Cache-Control', 'no-store')
   @ApiOperation({ summary: 'Get cafe details by slug' })
   findOne(@Param('slug') slug: string, @Query('locale') locale?: string) {
     return this.cafesService.findBySlug(slug, locale);
