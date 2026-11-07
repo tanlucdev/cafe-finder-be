@@ -13,6 +13,7 @@ import { QuizModule } from './quiz/quiz.module';
 import { FeedbackModule } from './feedback/feedback.module';
 import { ReviewsModule } from './reviews/reviews.module';
 import { RecentlyViewedModule } from './recently-viewed/recently-viewed.module';
+import { ChainsModule } from './chains/chains.module';
 import { HealthController } from './health.controller';
 
 @Module({
@@ -31,6 +32,7 @@ import { HealthController } from './health.controller';
     FeedbackModule,
     ReviewsModule,
     RecentlyViewedModule,
+    ChainsModule,
   ],
   controllers: [HealthController],
 })
