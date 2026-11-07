@@ -73,6 +73,7 @@ export const cafeListSelect = {
   coverImageCrop: true,
   menuImage: true,
   menuImages: true,
+  chain: { select: { id: true, name: true, slug: true } },
   createdAt: true,
   updatedAt: true,
   _count: { select: { savedCafes: true } },

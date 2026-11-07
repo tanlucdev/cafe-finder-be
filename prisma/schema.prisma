@@ -105,6 +105,8 @@ model Cafe {
   feedback          Feedback[]
   reviews           CafeReview[]
   createdFromSubmissions CafeSubmission[]
+  chainId           String?                  @map("chain_id") @db.Uuid
+  chain             Chain?                   @relation(fields: [chainId], references: [id], onDelete: SetNull)
   @@index([amenities], map: "idx_cafes_amenities", type: Gin)
   @@index([tags], map: "idx_cafes_tags", type: Gin)
   @@index([tagsEn], map: "idx_cafes_tags_en", type: Gin)
@@ -120,7 +122,21 @@ model Cafe {
   @@index([purposes], map: "idx_cafes_purposes", type: Gin)
   @@index([search_vector], map: "idx_cafes_search", type: Gin)
   @@index([vibes], map: "idx_cafes_vibes", type: Gin)
+  @@index([chainId], map: "idx_cafes_chain_id")
   @@map("cafes")
+}
+
+model Chain {
+  id            String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  name          String
+  slug          String   @unique
+  description   String?
+  descriptionEn String?  @map("description_en")
+  coverImage    String?  @map("cover_image")
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(6)
+  cafes         Cafe[]
+  @@map("chains")
 }
 model CafeViewEvent {
   id             String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid

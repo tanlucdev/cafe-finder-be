@@ -116,6 +116,13 @@ export class CafesController {
     return this.cafesService.quizMatch(vibeArr, purposeArr, locale, tagArr, limit);
   }
 
+  @Get(':slug/similar')
+  @Header('Cache-Control', 'public, max-age=300, stale-while-revalidate=600')
+  @ApiOperation({ summary: 'Find public cafes with a similar vibe' })
+  findSimilar(@Param('slug') slug: string, @Query('locale') locale?: string) {
+    return this.cafesService.findSimilar(slug, locale);
+  }
+
   @Post(':id/vote')
   @UseGuards(JwtAuthGuard)
   @ApiOperation({ summary: 'Vote for a cafe' })

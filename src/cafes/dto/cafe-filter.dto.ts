@@ -83,6 +83,11 @@ export class CafeFilterDto {
   @IsString()
   search?: string;
 
+  @ApiPropertyOptional({ description: 'Filter by chain UUID' })
+  @IsOptional()
+  @IsString()
+  chainId?: string;
+
   @ApiPropertyOptional({
     enum: ['under_50k', 'price_50k_100k', 'price_100k_150k', 'above_150k'],
     description: 'Filter by price range',

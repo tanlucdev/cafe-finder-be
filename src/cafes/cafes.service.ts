@@ -24,7 +24,7 @@ export class CafesService {
   ) {}
 
   async findAll(filter: CafeFilterDto, user?: { id: string }) {
-    const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours } =
+    const { locale, district, districts, search, priceRange, vibes, purposes, tags, hours, chainId } =
       filter;
     const { page = 1, limit = 12, sort, openNow } = filter;
 
@@ -63,6 +63,7 @@ export class CafesService {
     const where: any = {
       isPublished: true,
       isHidden: false,
+      ...(chainId && { chainId }),
       ...(priceRange && priceRangeToFilter(priceRange)),
       ...(openNow && openNowWhere(this.prisma.cafe.fields.openingTime)),
       ...(and.length && { AND: and }),
@@ -141,6 +142,44 @@ export class CafesService {
     };
   }
 
+  async findSimilar(slug: string, locale?: string) {
+    const source = await this.prisma.cafe.findFirst({
+      where: { slug, isPublished: true, isHidden: false },
+      select: { id: true, vibes: true, vibesEn: true, purposes: true, purposesEn: true, priceMin: true, priceMax: true },
+    });
+    if (!source) throw new NotFoundException(`Cafe not found with slug: ${slug}`);
+
+    const normalize = (values: string[]) => [...new Set(values.map((value) => value.trim().toLowerCase()).filter(Boolean))];
+    const sourceVibes = normalize([...(source.vibes ?? []), ...(source.vibesEn ?? [])]);
+    const sourcePurposes = normalize([...(source.purposes ?? []), ...(source.purposesEn ?? [])]);
+    const candidates = await this.prisma.cafe.findMany({
+      where: { isPublished: true, isHidden: false, id: { not: source.id }, OR: [{ vibes: { hasSome: source.vibes } }, { vibesEn: { hasSome: source.vibesEn } }] },
+      select: { ...cafeListSelect, vibes: true, vibesEn: true, purposes: true, purposesEn: true, priceMin: true, priceMax: true },
+      orderBy: [{ viewCount: 'desc' }, { id: 'asc' }],
+    });
+    const ratio = (left: string[], right: string[]) => {
+      const union = new Set([...left, ...right]);
+      return union.size ? left.filter((value) => right.includes(value)).length / union.size : 0;
+    };
+    const overlapVibe = (candidate: any) => normalize([...(candidate.vibes ?? []), ...(candidate.vibesEn ?? [])]).filter((value) => sourceVibes.includes(value));
+    const ranked = candidates.map((candidate: any) => {
+      const vibes = normalize([...(candidate.vibes ?? []), ...(candidate.vibesEn ?? [])]);
+      const purposes = normalize([...(candidate.purposes ?? []), ...(candidate.purposesEn ?? [])]);
+      const priceOverlap = source.priceMin != null && source.priceMax != null && candidate.priceMin != null && candidate.priceMax != null && Math.max(source.priceMin, candidate.priceMin) <= Math.min(source.priceMax, candidate.priceMax) ? 1 : 0;
+      return { candidate, matched: overlapVibe(candidate), score: [ratio(sourceVibes, vibes), ratio(sourcePurposes, purposes), priceOverlap] };
+    }).sort((a, b) => b.score[0] - a.score[0] || b.score[1] - a.score[1] || b.score[2] - a.score[2] || a.candidate.id.localeCompare(b.candidate.id));
+    const selected: typeof ranked = [];
+    const chains = new Set<string>();
+    for (const item of ranked) {
+      const chainId = item.candidate.chain?.id;
+      if (chainId && chains.has(chainId)) continue;
+      selected.push(item);
+      if (chainId) chains.add(chainId);
+      if (selected.length === 4) break;
+    }
+    return { data: selected.map(({ candidate, matched }) => ({ cafe: this.serializeListCafe(candidate), matchedVibe: matched[0] ?? (locale === 'en' ? 'similar atmosphere' : 'không gian tương đồng') })) };
+  }
+
   async trackView(cafeId: string, visitorKey: string) {
     const cafe = await this.prisma.cafe.findFirst({
       where: { id: cafeId, isPublished: true, isHidden: false },
@@ -208,7 +247,7 @@ export class CafesService {
   async findBySlug(slug: string, locale?: string) {
     const cafe = await this.prisma.cafe.findFirst({
       where: { slug, isPublished: true, isHidden: false },
-      include: { _count: { select: { savedCafes: true } } },
+      include: { chain: { select: { id: true, name: true, slug: true } }, _count: { select: { savedCafes: true } } },
     });
 
     if (!cafe) {
